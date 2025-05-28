@@ -1,0 +1,30 @@
+{
+  "name": "healthchain",
+  "version": "1.0.0",
+  "description": "Decentralized Medical Records System",
+  "main": "index.js",
+  "scripts": {
+    "test": "hardhat test",
+    "compile": "hardhat compile",
+    "deploy": "hardhat run scripts/deploy.js",
+    "deploy:testnet": "hardhat run scripts/deploy.js --network mumbai",
+    "deploy:mainnet": "hardhat run scripts/deploy.js --network polygon"
+  },
+  "keywords": [
+    "blockchain",
+    "medical",
+    "healthcare",
+    "ethereum",
+    "solidity"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "@nomicfoundation/hardhat-verify": "^2.0.14",
+    "@nomiclabs/hardhat-etherscan": "^3.1.8",
+    "@openzeppelin/contracts": "^4.9.3",
+    "dotenv": "^16.5.0",
+    "hardhat": "^2.24.1"
+  }
+}

@@ -17,9 +17,9 @@ const nonces = new Map<string, NonceData>();
 // Clean up expired nonces (older than 15 minutes)
 const cleanupNonces = () => {
   const now = Date.now();
-  for (const [address, data] of nonces.entries()) {
+  for (const [key, data] of nonces.entries()) {
     if (now - data.createdAt > 15 * 60 * 1000) { // 15 minutes
-      nonces.delete(address);
+      nonces.delete(key);
     }
   }
 };
@@ -29,14 +29,22 @@ export function generateNonce(address: string, purpose: 'wallet_connection' | 'r
   const nonce = uuid();
   console.log(`Generating new nonce for ${purpose}:`, { address, nonce });
   
-  nonces.set(`${address}_${purpose}`, {
+  const nonceKey = `${address}_${purpose}`;
+  console.log('Storing nonce with key:', nonceKey);
+  
+  nonces.set(nonceKey, {
     nonce,
     createdAt: Date.now(),
     used: false,
     purpose
   });
   
-  console.log('Current nonces:', Array.from(nonces.entries()));
+  console.log('Current nonces:', Array.from(nonces.entries()).map(([key, data]) => ({
+    key,
+    nonce: data.nonce,
+    purpose: data.purpose,
+    used: data.used
+  })));
   return nonce;
 }
 

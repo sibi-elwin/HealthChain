@@ -11,7 +11,6 @@ app.use(cors());
 
 app.use(express.json());
 
-
 app.use("/api/user", userRoutes);
 app.use("/api/doctor", doctorRoutes);
 app.use("/api/admin", adminRoutes);

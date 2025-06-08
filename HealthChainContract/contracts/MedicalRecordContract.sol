@@ -50,9 +50,8 @@ contract MedicalRecordContract is ReentrancyGuard {
         string memory description
     ) external nonReentrant {
         require(
-            accessControlContract.hasRole(accessControlContract.DOCTOR_ROLE(), msg.sender) ||
-            accessControlContract.hasRole(accessControlContract.LAB_ROLE(), msg.sender),
-            "Only doctors or labs can add records"
+            accessControlContract.hasRole(accessControlContract.PATIENT_ROLE(), msg.sender),
+            "Only patients can add records"
         );
         require(
             accessControlContract.hasRole(accessControlContract.PATIENT_ROLE(), patient),

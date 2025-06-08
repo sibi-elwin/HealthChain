@@ -1,0 +1,177 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  name          String
+  password      String?   // Make password optional initially
+  role          Role
+  walletAddress String    @unique
+  publicKey     String?   // Add public key field
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  doctorProfile    Doctor?         @relation("DoctorProfile")
+  patientProfile   Patient?        @relation("PatientProfile")
+  recordsCreated   MedicalRecord[] @relation("CreatedBy")
+  recordsReceived  MedicalRecord[] @relation("ForUser")
+  accessGrants     AccessGrant[]   @relation("GrantedTo")
+  accessGranted    AccessGrant[]   @relation("GrantedBy")
+  loginSessions    AuthSession[]
+  auditLogs        AuditLog[]
+  sessions         Session[]
+  accessRequestsSent     AccessRequest[] @relation("DoctorRequests")
+  accessRequestsReceived AccessRequest[] @relation("PatientRequests")
+  notifications         Notification[]
+}
+
+model Doctor {
+  userId         String   @id
+  specialization String
+  licenseNumber  String
+  hospital       String?
+  user           User     @relation("DoctorProfile", fields: [userId], references: [id])
+}
+
+model Patient {
+  userId            String   @id
+  dob              DateTime
+  gender           String
+  allergies        String?
+  bloodGroup       String?
+  emergencyContact String?
+  user             User     @relation("PatientProfile", fields: [userId], references: [id])
+}
+
+model MedicalRecord {
+  id                      String   @id @default(uuid())
+  createdById             String
+  forUserId               String
+  title                   String
+  description             String?
+  ipfsHash                String   // IPFS or Web3.Storage hash
+  blockchainTxHash        String? // Store blockchain transaction hash
+  encryptedAesKeyForPatient String? // Store AES key encrypted with patient's secret key - No longer used in simplified model
+  rawAesKey               String? // Store the raw AES key (Insecure for sensitive data)
+  fileType                String? // Add fileType field
+  createdAt               DateTime @default(now())
+
+  createdBy User @relation("CreatedBy", fields: [createdById], references: [id])
+  forUser  User @relation("ForUser", fields: [forUserId], references: [id])
+  accessGrants AccessGrant[]
+}
+
+model AccessGrant {
+  id         String   @id @default(uuid())
+  userId     String   // the doctor/user being granted access
+  recordId   String   // medical record being shared
+  grantedById String  // who granted it
+  grantedAt  DateTime @default(now())
+  expiresAt  DateTime?
+  encryptedAesKey String?
+
+  user      User         @relation("GrantedTo", fields: [userId], references: [id])
+  grantedBy User         @relation("GrantedBy", fields: [grantedById], references: [id])
+  record    MedicalRecord @relation(fields: [recordId], references: [id])
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String
+  action    String
+  details   String?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+model AuthSession {
+  id        String   @id @default(uuid())
+  userId    String
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  token     String   @unique
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  userId       String
+  token        String   @unique
+  expiresAt    DateTime
+  lastActivity DateTime @default(now())
+  ipAddress    String?
+  userAgent    String?
+  isValid      Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([token])
+  @@index([expiresAt])
+}
+
+model AccessRequest {
+  id                String            @id @default(uuid())
+  doctorId          String
+  patientId         String
+  doctorWalletAddress String
+  reason            String
+  status            AccessRequestStatus @default(PENDING)
+  requestedAt       DateTime          @default(now())
+  reviewedAt        DateTime?
+  
+  doctor            User              @relation("DoctorRequests", fields: [doctorId], references: [id])
+  patient           User              @relation("PatientRequests", fields: [patientId], references: [id])
+
+  @@index([doctorId])
+  @@index([patientId])
+  @@index([status])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  type      String
+  title     String
+  message   String
+  data      Json?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([read])
+  @@index([createdAt])
+}
+
+enum Role {
+  patient
+  doctor
+  admin
+}
+
+enum AccessRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}

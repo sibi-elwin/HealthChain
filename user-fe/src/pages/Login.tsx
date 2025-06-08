@@ -34,7 +34,7 @@ const Login: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-
+      
       // First connect to wallet and get address
       const { address: walletAddress, signer } = await authService.connectWallet();
       console.log('Wallet connected with address:', walletAddress);
@@ -44,13 +44,21 @@ const Login: React.FC = () => {
       const receivedNonce = await authService.requestNonce(walletAddress, 'wallet_connection');
       console.log('Received nonce:', receivedNonce);
       setNonce(receivedNonce);
-
+      
       // Show sign button after getting nonce
       setShowSignButton(true);
-
+      
     } catch (err: any) {
       console.error('Wallet connection error:', err);
-      setError(err.message || 'Failed to connect wallet');
+      // Handle specific error cases
+      if (err.message.includes('MetaMask')) {
+        setError('Please install MetaMask to use this feature');
+      } else if (err.message.includes('User denied')) {
+        setError('Please approve the connection request in MetaMask');
+      } else {
+        setError(err.message || 'Failed to connect wallet');
+      }
+      setShowSignButton(false);
     } finally {
       setLoading(false);
     }
@@ -91,7 +99,17 @@ const Login: React.FC = () => {
 
     } catch (err: any) {
       console.error('Signature verification error:', err);
-      setError(err.message || 'Failed to verify signature');
+      // Handle specific error cases
+      if (err.message.includes('Invalid signature')) {
+        setError('Signature verification failed. Please try again.');
+      } else if (err.message.includes('User denied')) {
+        setError('Please approve the signature request in MetaMask');
+      } else if (err.message.includes('Nonce')) {
+        setError('Session expired. Please connect your wallet again.');
+        setShowSignButton(false);
+      } else {
+        setError(err.message || 'Failed to verify signature');
+      }
       // Reset the sign button if verification fails
       setShowSignButton(false);
     } finally {

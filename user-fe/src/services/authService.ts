@@ -4,14 +4,48 @@ import { UserCredentials, UserData } from '../types/user';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:4000/api/user';
 
+interface DoctorProfile {
+  specialization: string;
+  licenseNumber: string;
+}
+
+interface Doctor {
+  id: string;
+  name: string;
+  doctorProfile: DoctorProfile;
+}
+
 interface AccessRequest {
   id: string;
-  doctorId: string;
-  doctorName: string;
-  purpose: string;
+  doctor: Doctor;
+  reason: string;
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  requestedAt: string;
+}
+
+interface AccessRequestResponse {
+  message: string;
+  data: AccessRequest[];
+}
+
+interface DashboardStats {
+  totalRecords: number;
+  pendingRequests: number;
+  unreadNotifications: number;
+}
+
+interface Notification {
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  data?: any;
+  read: boolean;
   createdAt: string;
-  updatedAt: string;
+}
+
+interface NotificationsResponse {
+  notifications: Notification[];
 }
 
 // Create axios instance with default config
@@ -249,7 +283,7 @@ export const authService = {
       if (!token) {
         throw new Error('No authentication token found');
       }
-      const response = await axios.get(
+      const response = await axios.get<AccessRequestResponse>(
         `${API_URL}/${user.walletAddress}/access-requests`,
         {
           headers: {
@@ -258,7 +292,8 @@ export const authService = {
           }
         }
       );
-      return response.data;
+      console.log('Access requests response:', response.data);
+      return response.data.data;
     } catch (error) {
       console.error('Error fetching access requests:', error);
       throw error;
@@ -290,5 +325,53 @@ export const authService = {
     return {
       Authorization: `Bearer ${token}`,
     };
+  },
+
+  async getDashboardStats(): Promise<DashboardStats> {
+    try {
+      const token = this.getToken();
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+      const response = await axios.get<{ data: DashboardStats }>(
+        `${API_URL}/dashboard-stats`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      return response.data.data;
+    } catch (error) {
+      console.error('Error fetching dashboard statistics:', error);
+      throw error;
+    }
+  },
+
+  async getNotifications(): Promise<NotificationsResponse> {
+    try {
+      const user = this.getUserFromToken();
+      if (!user?.walletAddress) {
+        throw new Error('User wallet address not found');
+      }
+      const token = this.getToken();
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+      const response = await axios.get<{ data: NotificationsResponse }>(
+        `${API_URL}/${user.walletAddress}/notifications`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      return response.data.data;
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+      throw error;
+    }
   }
 }; 

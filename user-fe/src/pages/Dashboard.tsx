@@ -19,6 +19,7 @@ import {
   Notifications as NotificationsIcon,
 } from '@mui/icons-material';
 import Layout from '../components/Layout';
+import { authService } from '../services/authService';
 
 interface DashboardProps {
   onLogout: () => void;
@@ -35,13 +36,23 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   });
 
   useEffect(() => {
-    // TODO: Fetch actual stats from the backend
-    setStats({
-      totalRecords: 5,
-      pendingRequests: 2,
-      unreadNotifications: 3,
-    });
-  }, []);
+    const fetchStats = async () => {
+      try {
+        const statsData = await authService.getDashboardStats();
+        setStats(statsData);
+      } catch (err) {
+        console.error('Error fetching dashboard statistics:', err);
+        setError('Failed to load dashboard statistics');
+      }
+    };
+
+    if (userAddress) {
+      fetchStats();
+      // Refresh stats every minute
+      const interval = setInterval(fetchStats, 60000);
+      return () => clearInterval(interval);
+    }
+  }, [userAddress]);
 
   if (loading) {
     return (

@@ -24,5 +24,6 @@ router.post("/:walletAddress/access-requests/:requestId/review", userController.
 router.get("/:walletAddress/notifications", userController.getNotifications);
 router.post("/:walletAddress/notifications/:notificationId/read", userController.markNotificationAsRead);
 router.get("/validate-token", userController.validateToken);
+router.get("/dashboard-stats", userController.getDashboardStats);
 
 export default router; 

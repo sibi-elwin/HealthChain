@@ -859,14 +859,6 @@ export const userController = {
         return;
       }
 
-      // Create audit log for token validation
-      await auditService.createAuditLog(
-        user.id,
-        'TOKEN_VALIDATED',
-        'Token validation successful',
-        req
-      );
-
       res.json({
         message: 'Token is valid',
         data: {
@@ -882,6 +874,50 @@ export const userController = {
     } catch (err: any) {
       console.error('Token validation error:', err);
       res.status(500).json({ error: 'Token validation failed' });
+    }
+  },
+
+  getDashboardStats: async (req: Request, res: Response): Promise<void> => {
+    try {
+      if (!req.user) {
+        res.status(401).json({ error: "Authentication required" });
+        return;
+      }
+
+      // Get total medical records
+      const totalRecords = await prisma.medicalRecord.count({
+        where: {
+          forUserId: req.user.id
+        }
+      });
+
+      // Get pending access requests
+      const pendingRequests = await prisma.accessRequest.count({
+        where: {
+          patientId: req.user.id,
+          status: 'PENDING'
+        }
+      });
+
+      // Get unread notifications
+      const unreadNotifications = await prisma.notification.count({
+        where: {
+          userId: req.user.id,
+          read: false
+        }
+      });
+
+      res.json({
+        message: "Dashboard statistics retrieved successfully",
+        data: {
+          totalRecords,
+          pendingRequests,
+          unreadNotifications
+        }
+      });
+    } catch (err: any) {
+      console.error('Error retrieving dashboard statistics:', err);
+      res.status(500).json({ error: err.message });
     }
   }
 }; 

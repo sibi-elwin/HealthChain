@@ -273,5 +273,34 @@ export const authService = {
       console.error('Error fetching access requests:', error);
       throw new Error(error.response?.data?.error || error.message || 'Failed to fetch access requests');
     }
+  },
+
+  async requestAccess(patientAddress: string, purpose: string): Promise<void> {
+    try {
+      const user = this.getUserFromToken();
+      if (!user?.walletAddress) {
+        throw new Error('User wallet address not found');
+      }
+      const token = this.getToken();
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+      await axios.post(
+        `${API_URL}/access-request`,
+        {
+          patientWalletAddress: patientAddress,
+          reason: purpose
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+    } catch (error) {
+      console.error('Error requesting access:', error);
+      throw error;
+    }
   }
 }; 

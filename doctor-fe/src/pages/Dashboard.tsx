@@ -11,6 +11,7 @@ import {
   CardContent,
   CardActions,
   Alert,
+  TextField,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -22,6 +23,7 @@ import { authService } from '../services/authService';
 import Layout from '../components/Layout';
 import { useNavigate } from 'react-router-dom';
 import { useWallet } from '../hooks/useWallet';
+import { AccessRequestForm } from '../components/AccessRequestForm';
 
 interface DashboardProps {
   onLogout: () => void;
@@ -36,6 +38,8 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     pendingRequests: 0,
     unreadNotifications: 0,
   });
+  const [showRequestForm, setShowRequestForm] = useState(false);
+  const [patientAddress, setPatientAddress] = useState('');
 
   useEffect(() => {
     if (userAddress) {
@@ -46,6 +50,13 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       });
     }
   }, [userAddress]);
+
+  const handleSubmitAddress = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (patientAddress) {
+      setShowRequestForm(true);
+    }
+  };
 
   if (walletLoading) {
     return (
@@ -70,6 +81,60 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     );
   }
 
+  if (showRequestForm) {
+    return (
+      <Layout onLogout={onLogout}>
+        <Box sx={{ mt: 4 }}>
+          {!patientAddress ? (
+            <Paper elevation={3} sx={{ p: 3, maxWidth: 600, mx: 'auto' }}>
+              <Typography variant="h6" gutterBottom>
+                Enter Patient's Wallet Address
+              </Typography>
+              <form onSubmit={handleSubmitAddress}>
+                <TextField
+                  fullWidth
+                  label="Patient Wallet Address"
+                  value={patientAddress}
+                  onChange={(e) => setPatientAddress(e.target.value)}
+                  required
+                  sx={{ mb: 3 }}
+                  placeholder="0x..."
+                />
+                <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
+                  <Button
+                    variant="outlined"
+                    onClick={() => setShowRequestForm(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    variant="contained"
+                    disabled={!patientAddress.trim()}
+                  >
+                    Continue
+                  </Button>
+                </Box>
+              </form>
+            </Paper>
+          ) : (
+            <AccessRequestForm
+              patientAddress={patientAddress}
+              onSuccess={() => {
+                setShowRequestForm(false);
+                setPatientAddress('');
+              }}
+              onCancel={() => {
+                setShowRequestForm(false);
+                setPatientAddress('');
+              }}
+            />
+          )}
+        </Box>
+      </Layout>
+    );
+  }
+
   const quickActions = [
     {
       title: 'View Records',
@@ -78,10 +143,10 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       action: () => navigate('/medical-records-access'),
     },
     {
-      title: 'Access Requests',
-      description: 'Review pending access requests from patients',
+      title: 'Request Access',
+      description: 'Request access to patient records',
       icon: <PeopleIcon sx={{ fontSize: 40 }} />,
-      action: () => navigate('/access-requests'),
+      action: () => setShowRequestForm(true),
     },
     {
       title: 'Notifications',

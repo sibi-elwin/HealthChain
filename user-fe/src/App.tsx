@@ -5,6 +5,7 @@ import Signup from './pages/Signup';
 import Dashboard from './pages/Dashboard';
 import MedicalRecords from './pages/MedicalRecords';
 import UploadMedicalRecord from './pages/UploadMedicalRecord';
+import Notifications from './pages/Notifications';
 import { authService } from './services/authService';
 import ProtectedRoute from './components/ProtectedRoute';
 
@@ -36,6 +37,10 @@ function App() {
       <Route 
         path="/medical-records/upload" 
         element={<ProtectedRoute><UploadMedicalRecord onLogout={handleLogout} /></ProtectedRoute>} 
+      />
+      <Route 
+        path="/notifications" 
+        element={<ProtectedRoute><Notifications onLogout={handleLogout} /></ProtectedRoute>} 
       />
       <Route path="/" element={<Navigate to="/login" />} />
     </Routes>

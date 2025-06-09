@@ -98,14 +98,6 @@ export const doctorController = {
         return;
       }
 
-      // Create audit log for token validation
-      await auditService.createAuditLog(
-        user.id,
-        'TOKEN_VALIDATED',
-        'Token validation successful',
-        req
-      );
-
       res.json({
         message: "Token is valid",
         data: {

@@ -23,11 +23,27 @@ const Login: React.FC = () => {
   const [nonce, setNonce] = useState<string | null>(null);
   const [connectedAddress, setConnectedAddress] = useState<string | null>(null);
   const { address, loading: walletLoading } = useWallet();
+  const [isValidating, setIsValidating] = useState(true);
 
   useEffect(() => {
-    if (!walletLoading && authService.isAuthenticated() && address) {
-      navigate('/dashboard', { replace: true });
-    }
+    const checkAuth = async () => {
+      if (!walletLoading) {
+        try {
+          if (address) {
+            const isValid = await authService.validateToken();
+            if (isValid) {
+              navigate('/dashboard', { replace: true });
+            }
+          }
+        } catch (err) {
+          console.error('Auth check error:', err);
+          authService.logout();
+        }
+        setIsValidating(false);
+      }
+    };
+
+    checkAuth();
   }, [walletLoading, address, navigate]);
 
   const handleConnectWallet = async () => {
@@ -40,8 +56,8 @@ const Login: React.FC = () => {
       console.log('Wallet connected with address:', walletAddress);
       setConnectedAddress(walletAddress);
 
-      // Request nonce from backend for wallet connection
-      const receivedNonce = await authService.requestNonce(walletAddress, 'wallet_connection');
+      // Request nonce from backend for login
+      const receivedNonce = await authService.requestNonce(walletAddress, 'login');
       console.log('Received nonce:', receivedNonce);
       setNonce(receivedNonce);
       
@@ -86,7 +102,7 @@ const Login: React.FC = () => {
       console.log('Generated signature:', signature);
 
       // Verify signature and get token - wait for backend verification
-      const token = await authService.verifySignature(connectedAddress, signature, 'wallet_connection');
+      const token = await authService.verifySignature(connectedAddress, signature, 'login');
       console.log('Signature verified successfully. Token received:', token);
 
       // Only navigate after successful backend verification and token receipt
@@ -117,11 +133,22 @@ const Login: React.FC = () => {
     }
   };
 
-  if (walletLoading || (authService.isAuthenticated() && address)) {
+  if (walletLoading || isValidating) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-        <CircularProgress />
-        <Typography variant="h6" sx={{ ml: 2 }}>Loading...</Typography>
+      <Box 
+        sx={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'center', 
+          height: '100vh',
+          flexDirection: 'column',
+          gap: 2
+        }}
+      >
+        <CircularProgress size={40} />
+        <Typography variant="h6">
+          Loading...
+        </Typography>
       </Box>
     );
   }

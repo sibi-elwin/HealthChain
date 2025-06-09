@@ -7,6 +7,8 @@ const router = Router();
 router.post("/nonce", userController.requestNonce);
 router.post("/verify", userController.verifySignature);
 router.post("/register", userController.register);
+router.post("/login", userController.login);
+
 router.get("/:walletAddress/roles", userController.checkUserRoles);
 router.get("/:walletAddress/medical-records", userController.getMedicalRecords);
 router.post("/:walletAddress/medical-records", userController.uploadMedicalRecord);
@@ -20,6 +22,9 @@ router.get("/:walletAddress/access-requests", userController.getAccessRequests);
 router.post("/:walletAddress/access-requests/:requestId/review", userController.reviewAccessRequest);
 router.get("/:walletAddress/notifications", userController.getNotifications);
 router.post("/:walletAddress/notifications/:notificationId/read", userController.markNotificationAsRead);
+
+// Add validate token route
+router.get("/validate-token", userController.validateToken);
 
 // For protected routes
 export default router; 

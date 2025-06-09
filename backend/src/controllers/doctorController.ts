@@ -1,10 +1,10 @@
 import { Request, Response } from "express";
-import { AuthRequest } from "../middlewares/authMiddleware";
 import { PrismaClient } from "@prisma/client";
 import { blockchainService } from "../services/blockchainService";
 import { UserRole } from "backend-contract/src/services/contractService";
 import { auditService } from "../services/auditService";
 import { authenticate, generateNonce } from "../services/authService";
+import { SessionService } from "../services/sessionService";
 
 const prisma = new PrismaClient();
 
@@ -29,19 +29,98 @@ export const doctorController = {
     res.json(response);
   },
 
-  verifySignature: (req: Request, res: Response): void => {
+  verifySignature: async (req: Request, res: Response): Promise<void> => {
     const { address, signature, purpose } = req.body;
     try {
       console.log('Verifying signature for address:', address);
       const { token } = authenticate(address, signature, purpose);
       console.log('Token generated:', token);
+
+      // Find doctor by wallet address
+      const user = await prisma.user.findUnique({
+        where: { walletAddress: address }
+      });
+
+      if (!user) {
+        res.status(401).json({ error: 'Doctor not found' });
+        return;
+      }
+
+      // Only create session if purpose is 'login'
+      if (purpose === 'login') {
+        // Create session using sessionService
+        const sessionService = new SessionService();
+        await sessionService.createSession(user.id, token, 24 * 60 * 60, req);
+
+        // Create audit log for login
+        await auditService.createAuditLog(
+          user.id,
+          'DOCTOR_LOGIN',
+          'Doctor logged in successfully',
+          req
+        );
+      }
+
       res.json({ 
         message: "Signature verified successfully",
-        data: { token }
+        data: { 
+          token,
+          user: {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            role: user.role
+          }
+        }
       });
     } catch (err: any) {
       console.error('Signature verification error:', err);
       res.status(400).json({ error: err.message });
+    }
+  },
+
+  validateToken: async (req: Request, res: Response): Promise<void> => {
+    try {
+      if (!req.user) {
+        res.status(401).json({ error: "Authentication required" });
+        return;
+      }
+
+      const user = await prisma.user.findUnique({
+        where: { id: req.user.id },
+        include: {
+          doctorProfile: true
+        }
+      });
+
+      if (!user || !user.doctorProfile) {
+        res.status(401).json({ error: "Invalid doctor account" });
+        return;
+      }
+
+      // Create audit log for token validation
+      await auditService.createAuditLog(
+        user.id,
+        'TOKEN_VALIDATED',
+        'Token validation successful',
+        req
+      );
+
+      res.json({
+        message: "Token is valid",
+        data: {
+          user: {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            role: user.role,
+            walletAddress: user.walletAddress
+          }
+        }
+      });
+    } catch (err: any) {
+      console.error('Token validation error:', err);
+      res.status(500).json({ error: err.message });
     }
   },
 
@@ -184,7 +263,7 @@ export const doctorController = {
     }
   },
 
-  getProfile: async (req: AuthRequest, res: Response): Promise<void> => {
+  getProfile: async (req: Request, res: Response): Promise<void> => {
     try {
       if (!req.user) {
         res.status(401).json({ error: "Authentication required" });
@@ -221,7 +300,7 @@ export const doctorController = {
     }
   },
 
-  updateProfile: async (req: AuthRequest, res: Response): Promise<void> => {
+  updateProfile: async (req: Request, res: Response): Promise<void> => {
     try {
       if (!req.user) {
         res.status(401).json({ error: "Authentication required" });
@@ -314,7 +393,7 @@ export const doctorController = {
   /**
    * Get medical records the authenticated doctor has been granted access to.
    */
-  getAccessibleMedicalRecords: async (req: AuthRequest, res: Response): Promise<void> => {
+  getAccessibleMedicalRecords: async (req: Request, res: Response): Promise<void> => {
     try {
       // 1. Ensure doctor is authenticated
       if (!req.user || req.user.role !== 'doctor') {
@@ -368,17 +447,16 @@ export const doctorController = {
               description: grant.record.description,
               ipfsHash: grant.record.ipfsHash,
               createdAt: grant.record.createdAt,
-              fileType: grant.record.fileType, // Include fileType
-              patient: { // Include minimal patient info for context
+              fileType: grant.record.fileType,
+              patient: {
                 id: grant.record.forUser.id,
                 name: grant.record.forUser.name,
                 walletAddress: grant.record.forUser.walletAddress
               },
               grantedAt: grant.grantedAt,
               expiresAt: grant.expiresAt,
-              // Add blockchainTxHash if stored on the record
               blockchainTxHash: grant.record.blockchainTxHash,
-              aesKey: grant.encryptedAesKey // Include the raw AES key from the AccessGrant's encryptedAesKey field
+              aesKey: grant.encryptedAesKey // Map encryptedAesKey to aesKey for frontend compatibility
             });
           } else {
             console.log(`Blockchain access denied for record ${grant.record.id}. Skipping.`);
@@ -403,7 +481,7 @@ export const doctorController = {
     }
   },
 
-  createAccessRequest: async (req: AuthRequest, res: Response): Promise<void> => {
+  createAccessRequest: async (req: Request, res: Response): Promise<void> => {
     try {
       if (!req.user) {
         res.status(401).json({ error: "Authentication required" });
@@ -483,7 +561,7 @@ export const doctorController = {
     }
   },
 
-  getAccessRequests: async (req: AuthRequest, res: Response): Promise<void> => {
+  getAccessRequests: async (req: Request, res: Response): Promise<void> => {
     try {
       if (!req.user) {
         res.status(401).json({ error: "Authentication required" });

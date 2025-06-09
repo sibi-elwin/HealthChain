@@ -26,12 +26,16 @@ api.interceptors.response.use(
   (error: AxiosError<{ error: string }>) => {
     const errorMessage = error.response?.data?.error || error.message;
     console.error('API Error:', errorMessage);
+    if (error.response?.status === 401) {
+      // Clear token on authentication error
+      localStorage.removeItem('token');
+    }
     return Promise.reject(new Error(errorMessage));
   }
 );
 
 export const authService = {
-  async requestNonce(address: string, purpose: 'wallet_connection' | 'registration' = 'wallet_connection'): Promise<string> {
+  async requestNonce(address: string, purpose: 'wallet_connection' | 'registration' | 'login' = 'wallet_connection'): Promise<string> {
     try {
       console.log('Requesting nonce for address:', address, 'with purpose:', purpose);
       const response = await api.post('/nonce', { address, purpose });
@@ -56,7 +60,21 @@ export const authService = {
     }
   },
 
-  async verifySignature(address: string, signature: string, purpose: 'wallet_connection' | 'registration' = 'wallet_connection'): Promise<string> {
+  async validateToken(): Promise<boolean> {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return false;
+
+      const response = await api.get('/validate-token');
+      return response.status === 200;
+    } catch (error) {
+      console.error('Token validation error:', error);
+      localStorage.removeItem('token'); // Clear invalid token
+      return false;
+    }
+  },
+
+  async verifySignature(address: string, signature: string, purpose: 'wallet_connection' | 'registration' | 'login' = 'wallet_connection'): Promise<string> {
     try {
       console.log('Verifying signature for address:', address);
       const response = await api.post('/verify', { address, signature, purpose });

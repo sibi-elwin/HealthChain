@@ -8,6 +8,7 @@ import jwt from "jsonwebtoken";
 import { auditService } from "../services/auditService";
 import { ethers } from 'ethers';
 import { createHash } from 'crypto';
+import { SessionService } from "../services/sessionService";
 
 const prisma = new PrismaClient();
 
@@ -32,15 +33,49 @@ export const userController = {
     res.json(response);
   },
 
-  verifySignature: (req: Request, res: Response): void => {
+  verifySignature: async (req: Request, res: Response): Promise<void> => {
     const { address, signature, purpose } = req.body;
     try {
       console.log('Verifying signature for address:', address);
       const { token } = authenticate(address, signature, purpose);
       console.log('Token generated:', token);
+
+      // Find user by wallet address
+      const user = await prisma.user.findUnique({
+        where: { walletAddress: address }
+      });
+
+      if (!user) {
+        res.status(401).json({ error: 'User not found' });
+        return;
+      }
+
+      // Only create session if purpose is 'login'
+      if (purpose === 'login') {
+        // Create session using sessionService
+        const sessionService = new SessionService();
+        await sessionService.createSession(user.id, token, 24 * 60 * 60, req);
+
+        // Create audit log for login
+        await auditService.createAuditLog(
+          user.id,
+          'LOGIN',
+          'User logged in successfully',
+          req
+        );
+      }
+
       res.json({ 
         message: "Signature verified successfully",
-        data: { token }
+        data: { 
+          token,
+          user: {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            role: user.role
+          }
+        }
       });
     } catch (err: any) {
       console.error('Signature verification error:', err);
@@ -508,10 +543,14 @@ export const userController = {
           userId: doctor.id, // Doctor's user ID
           recordId: recordId, // Medical record ID
           grantedById: owner.id, // Patient's user ID
-          encryptedAesKey: encryptedAesKey || null, // This field name is misleading but stored the raw key before
-          // You might also want to store the transaction hash here if needed
-          // blockchainTxHash: req.body.transactionHash // Assuming you pass tx hash from frontend
+          encryptedAesKey: encryptedAesKey // Store the raw AES key (field name is misleading)
         }
+      });
+
+      // Update the medical record with the transaction hash
+      await prisma.medicalRecord.update({
+        where: { id: recordId },
+        data: { blockchainTxHash: transactionHash }
       });
 
       // Optional: Log the database grant recording
@@ -745,6 +784,67 @@ export const userController = {
     } catch (err: any) {
       console.error('Error marking notification as read:', err);
       res.status(500).json({ error: err.message });
+    }
+  },
+
+  validateToken: async (req: Request, res: Response): Promise<void> => {
+    try {
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        res.status(401).json({ error: 'No token provided' });
+        return;
+      }
+
+      const token = authHeader.split(' ')[1];
+      const sessionService = new SessionService();
+
+      // Validate session
+      const session = await sessionService.validateSession(token);
+      if (!session) {
+        res.status(401).json({ error: 'Invalid or expired session' });
+        return;
+      }
+
+      // Get user details
+      const user = await prisma.user.findUnique({
+        where: { id: session.userId },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          role: true,
+          walletAddress: true
+        }
+      });
+
+      if (!user) {
+        res.status(401).json({ error: 'User not found' });
+        return;
+      }
+
+      // Create audit log for token validation
+      await auditService.createAuditLog(
+        user.id,
+        'TOKEN_VALIDATED',
+        'Token validation successful',
+        req
+      );
+
+      res.json({
+        message: 'Token is valid',
+        data: {
+          user: {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            role: user.role,
+            walletAddress: user.walletAddress
+          }
+        }
+      });
+    } catch (err: any) {
+      console.error('Token validation error:', err);
+      res.status(500).json({ error: 'Token validation failed' });
     }
   }
 }; 

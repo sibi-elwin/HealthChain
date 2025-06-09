@@ -32,7 +32,7 @@ api.interceptors.response.use(
 );
 
 export const authService = {
-  async requestNonce(address: string, purpose: 'wallet_connection' | 'registration' = 'wallet_connection'): Promise<string> {
+  async requestNonce(address: string, purpose: 'login' | 'registration' | 'wallet_connection' = 'wallet_connection'): Promise<string> {
     try {
       console.log('Requesting nonce for address:', address, 'with purpose:', purpose);
       const response = await api.post('/nonce', { address, purpose });
@@ -57,7 +57,7 @@ export const authService = {
     }
   },
 
-  async verifySignature(address: string, signature: string, purpose: 'wallet_connection' | 'registration' = 'wallet_connection'): Promise<string> {
+  async verifySignature(address: string, signature: string, purpose: 'login' | 'registration' | 'wallet_connection' = 'wallet_connection'): Promise<string> {
     try {
       console.log('Verifying signature for address:', address);
       const response = await api.post('/verify', { address, signature, purpose });
@@ -184,8 +184,25 @@ export const authService = {
     localStorage.removeItem('token');
   },
 
+  async validateToken(): Promise<boolean> {
+    try {
+      const token = this.getToken();
+      if (!token) return false;
+
+      const response = await api.get('/validate-token');
+      return response.status === 200;
+    } catch (error) {
+      console.error('Token validation error:', error);
+      // If validation fails, clear the token
+      this.logout();
+      return false;
+    }
+  },
+
   isAuthenticated(): boolean {
-    return !!localStorage.getItem('token');
+    // This is now just a synchronous check for token existence
+    // The actual validation happens in validateToken
+    return !!this.getToken();
   },
 
   getToken(): string | null {

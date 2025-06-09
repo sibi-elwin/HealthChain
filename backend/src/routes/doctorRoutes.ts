@@ -12,6 +12,7 @@ router.get("/verify/:walletAddress", doctorController.verifyDoctorRole);
 
 // Protected routes (auth required)
 router.use(authMiddleware);
+router.get("/validate-token", doctorController.validateToken);
 router.get("/profile", doctorController.getProfile);
 router.put("/profile", doctorController.updateProfile);
 router.get("/accessible-medical-records", doctorController.getAccessibleMedicalRecords);

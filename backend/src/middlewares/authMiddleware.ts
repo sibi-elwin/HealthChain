@@ -2,18 +2,29 @@ import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import { config } from "../config";
 import { SessionService } from '../services/sessionService';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, User, Role } from '@prisma/client';
 
 const prisma = new PrismaClient();
 const sessionService = new SessionService();
 
-export interface AuthRequest extends Request {
-  address?: string;
-  userId?: string;
-  session?: any;
+interface AuthenticatedUser {
+  id: string;
+  email: string;
+  name: string;
+  role: Role;
+  walletAddress: string;
 }
 
-export async function authMiddleware(req: AuthRequest, res: Response, next: NextFunction) {
+declare global {
+  namespace Express {
+    interface Request {
+      user?: AuthenticatedUser;
+      session?: any;
+    }
+  }
+}
+
+export async function authMiddleware(req: Request, res: Response, next: NextFunction) {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader?.startsWith('Bearer ')) {
@@ -22,23 +33,20 @@ export async function authMiddleware(req: AuthRequest, res: Response, next: Next
 
     const token = authHeader.split(' ')[1];
     
-    // First try to validate as a regular session
-    const session = await sessionService.validateSession(token);
-    
-    if (session) {
-      // Regular session is valid
-      req.userId = session.userId;
-      req.session = session;
-      return next();
-    }
-
-    // If no valid session found, try to validate as an auth session
+    // First try to validate as an auth session
     const authSession = await sessionService.validateAuthSession(token);
     
     if (authSession) {
       // Auth session is valid, create a new regular session
       const user = await prisma.user.findUnique({
         where: { id: authSession.userId },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          role: true,
+          walletAddress: true
+        }
       });
 
       if (!user) {
@@ -53,8 +61,33 @@ export async function authMiddleware(req: AuthRequest, res: Response, next: Next
         req
       );
 
-      req.userId = user.id;
+      req.user = user as AuthenticatedUser;
       req.session = newSession;
+      return next();
+    }
+
+    // If no valid auth session found, try to validate as a regular session
+    const session = await sessionService.validateSession(token);
+    
+    if (session) {
+      // Regular session is valid
+      const user = await prisma.user.findUnique({
+        where: { id: session.userId },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          role: true,
+          walletAddress: true
+        }
+      });
+
+      if (!user) {
+        return res.status(401).json({ error: 'User not found' });
+      }
+
+      req.user = user as AuthenticatedUser;
+      req.session = session;
       return next();
     }
 
@@ -65,22 +98,14 @@ export async function authMiddleware(req: AuthRequest, res: Response, next: Next
   }
 }
 
-export function requireRole(roles: string[]) {
-  return async (req: AuthRequest, res: Response, next: NextFunction) => {
+export function requireRole(roles: Role[]) {
+  return async (req: Request, res: Response, next: NextFunction) => {
     try {
-      if (!req.userId) {
+      if (!req.user) {
         return res.status(401).json({ error: 'Authentication required' });
       }
 
-      const user = await prisma.user.findUnique({
-        where: { id: req.userId },
-      });
-
-      if (!user) {
-        return res.status(401).json({ error: 'User not found' });
-      }
-
-      if (!roles.includes(user.role)) {
+      if (!roles.includes(req.user.role)) {
         return res.status(403).json({ error: 'Insufficient permissions' });
       }
 

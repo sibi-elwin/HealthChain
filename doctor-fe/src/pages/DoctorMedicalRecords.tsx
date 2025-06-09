@@ -43,20 +43,27 @@ export default function DoctorMedicalRecords({ onLogout }: DoctorMedicalRecordsP
   const [decryptedFileUrl, setDecryptedFileUrl] = useState<string | null>(null);
   const [decrypting, setDecrypting] = useState(false);
 
+  const fetchAccessibleRecords = async () => {
+    try {
+      if (doctorAddress) {
+        const records = await authService.getAccessibleMedicalRecords();
+        setAccessibleRecords(records);
+        if (records.length > 0 && !selectedPatientWalletAddress) {
+          setSelectedPatientWalletAddress(records[0].patient.walletAddress);
+        }
+      }
+    } catch (err: any) {
+      console.error('Error fetching medical records:', err);
+      setError(err.message || 'Failed to load medical records');
+    }
+  };
+
   useEffect(() => {
     const initializeRecords = async () => {
       try {
         setLoading(true);
         setError('');
-        if (doctorAddress) {
-          const records = await authService.getAccessibleMedicalRecords();
-          setAccessibleRecords(records);
-          if (records.length > 0) {
-            setSelectedPatientWalletAddress(records[0].patient.walletAddress);
-          }
-        } else if (!walletLoading) {
-          setError('Doctor wallet address not found or wallet not connected.');
-        }
+        await fetchAccessibleRecords();
       } catch (err: any) {
         console.error('Error initializing medical records:', err);
         setError(err.message || 'Failed to load medical records');
@@ -66,6 +73,12 @@ export default function DoctorMedicalRecords({ onLogout }: DoctorMedicalRecordsP
     };
 
     initializeRecords();
+
+    // Set up polling every 30 seconds
+    const pollInterval = setInterval(fetchAccessibleRecords, 30000);
+
+    // Cleanup interval on component unmount
+    return () => clearInterval(pollInterval);
   }, [doctorAddress, walletLoading]);
 
   const recordsByPatient = accessibleRecords.reduce((acc: Record<string, MedicalRecord[]>, record) => {

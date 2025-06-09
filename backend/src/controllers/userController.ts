@@ -9,6 +9,7 @@ import { auditService } from "../services/auditService";
 import { ethers } from 'ethers';
 import { createHash } from 'crypto';
 import { SessionService } from "../services/sessionService";
+import { verifySignature } from "../utils/verifySignature";
 
 const prisma = new PrismaClient();
 
@@ -34,9 +35,29 @@ export const userController = {
   },
 
   verifySignature: async (req: Request, res: Response): Promise<void> => {
-    const { address, signature, purpose } = req.body;
+    const { address, signature, purpose, nonce } = req.body;
     try {
       console.log('Verifying signature for address:', address);
+      
+      // For wallet_connection, we only verify the signature without checking user existence
+      if (purpose === 'wallet_connection') {
+        if (!nonce) {
+          res.status(400).json({ error: 'Nonce is required for wallet connection' });
+          return;
+        }
+        const isValid = verifySignature(address, signature, nonce);
+        if (!isValid) {
+          res.status(401).json({ error: 'Invalid signature' });
+          return;
+        }
+        res.json({ 
+          message: "Signature verified successfully",
+          data: { verified: true }
+        });
+        return;
+      }
+
+      // For other purposes (login, registration), proceed with normal flow
       const { token } = authenticate(address, signature, purpose);
       console.log('Token generated:', token);
 
@@ -178,6 +199,10 @@ export const userController = {
             throw new Error('Failed to verify role addition to blockchain');
           }
 
+          // Create session for the new user
+          const sessionService = new SessionService();
+          await sessionService.createSession(user.id, token, 24 * 60 * 60, req);
+
           // Add audit log for user registration
           await auditService.createAuditLog(
             user.id,
@@ -189,6 +214,19 @@ export const userController = {
             }),
             req
           );
+
+          console.log('Registration successful:', {
+            user,
+            token
+          });
+
+          res.status(201).json({
+            message: "User registered successfully",
+            data: {
+              user,
+              token
+            }
+          });
         } catch (blockchainError) {
           console.error('Failed to add user role to blockchain:', blockchainError);
           // Rollback database changes if blockchain role addition fails
@@ -206,19 +244,6 @@ export const userController = {
           }
           throw new Error('Failed to add user role to blockchain. Registration incomplete.');
         }
-
-        console.log('Registration successful:', {
-          user,
-          token
-        });
-
-        res.status(201).json({
-          message: "User registered successfully",
-          data: {
-            user,
-            token
-          }
-        });
       } catch (err: any) {
         console.error('Signature verification failed:', err);
         res.status(401).json({ error: "Invalid signature" });
@@ -601,22 +626,22 @@ export const userController = {
     // }
   },
 
-  getAccessRequests: async (req: Request, res: Response): Promise<void> => {
+  getAccessRequests: async (req: Request, res: Response) => {
     try {
       const { walletAddress } = req.params;
 
-      const user = await prisma.user.findUnique({
-        where: { walletAddress }
-      });
-
-      if (!user) {
-        res.status(404).json({ error: "User not found" });
+      // Verify the requesting user is the patient
+      if (req.user?.walletAddress !== walletAddress) {
+        res.status(403).json({ error: "Unauthorized to view these access requests" });
         return;
       }
 
+      // Get all pending access requests for this patient
       const accessRequests = await prisma.accessRequest.findMany({
         where: {
-          patientId: user.id,
+          patient: {
+            walletAddress: walletAddress
+          },
           status: 'PENDING'
         },
         include: {
@@ -631,34 +656,47 @@ export const userController = {
         }
       });
 
+      // Create audit log
+      await auditService.createAuditLog(
+        req.user.id,
+        'ACCESS_REQUESTS_VIEWED',
+        `Viewed ${accessRequests.length} access requests`,
+        req
+      );
+
       res.json({
         message: "Access requests retrieved successfully",
-        data: { accessRequests }
+        data: accessRequests
       });
     } catch (err: any) {
-      console.error('Error retrieving access requests:', err);
+      console.error('Error fetching access requests:', err);
       res.status(500).json({ error: err.message });
     }
   },
 
-  reviewAccessRequest: async (req: Request, res: Response): Promise<void> => {
+  reviewAccessRequest: async (req: Request, res: Response) => {
     try {
       const { walletAddress, requestId } = req.params;
       const { status } = req.body;
 
-      const user = await prisma.user.findUnique({
-        where: { walletAddress }
-      });
-
-      if (!user) {
-        res.status(404).json({ error: "User not found" });
+      // Verify the requesting user is the patient
+      if (req.user?.walletAddress !== walletAddress) {
+        res.status(403).json({ error: "Unauthorized to review this access request" });
         return;
       }
 
+      // Validate status
+      if (!['APPROVED', 'REJECTED'].includes(status)) {
+        res.status(400).json({ error: "Invalid status. Must be 'APPROVED' or 'REJECTED'" });
+        return;
+      }
+
+      // Get the access request
       const accessRequest = await prisma.accessRequest.findUnique({
         where: { id: requestId },
         include: {
-          doctor: true
+          doctor: true,
+          patient: true
         }
       });
 
@@ -667,54 +705,53 @@ export const userController = {
         return;
       }
 
-      if (accessRequest.patientId !== user.id) {
-        res.status(403).json({ error: "Not authorized to review this request" });
+      // Verify the request belongs to this patient
+      if (accessRequest.patient.walletAddress !== walletAddress) {
+        res.status(403).json({ error: "Unauthorized to review this access request" });
         return;
       }
 
-      if (accessRequest.status !== 'PENDING') {
-        res.status(400).json({ error: "Request has already been reviewed" });
-        return;
-      }
-
-      // Update access request status
+      // Update the access request status
       const updatedRequest = await prisma.accessRequest.update({
         where: { id: requestId },
-        data: {
+        data: { 
           status,
           reviewedAt: new Date()
-        }
-      });
-
-      // Create notification for doctor
-      await prisma.notification.create({
-        data: {
-          userId: accessRequest.doctorId,
-          type: 'ACCESS_REQUEST_REVIEWED',
-          title: 'Access Request Reviewed',
-          message: `Your access request has been ${status.toLowerCase()}`,
-          data: {
-            requestId,
-            status,
-            timestamp: new Date().toISOString()
+        },
+        include: {
+          doctor: {
+            include: {
+              doctorProfile: true
+            }
           }
         }
       });
 
-      // Add audit log
+      // Create audit log
       await auditService.createAuditLog(
-        user.id,
+        req.user.id,
         'ACCESS_REQUEST_REVIEWED',
-        JSON.stringify({
-          requestId,
-          status
-        }),
+        `Access request ${status.toLowerCase()} for doctor ${accessRequest.doctor.name}`,
         req
       );
 
+      // Create notification for the doctor
+      await prisma.notification.create({
+        data: {
+          userId: accessRequest.doctorId,
+          type: status === 'APPROVED' ? 'ACCESS_REQUEST_APPROVED' : 'ACCESS_REQUEST_REJECTED',
+          title: 'Access Request Review',
+          message: `Your access request for patient ${req.user.name}'s records has been ${status.toLowerCase()}`,
+          data: {
+            patientWalletAddress: walletAddress,
+            requestId
+          }
+        }
+      });
+
       res.json({
-        message: "Access request reviewed successfully",
-        data: { accessRequest: updatedRequest }
+        message: `Access request ${status.toLowerCase()} successfully`,
+        data: updatedRequest
       });
     } catch (err: any) {
       console.error('Error reviewing access request:', err);

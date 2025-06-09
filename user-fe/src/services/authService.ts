@@ -2,7 +2,17 @@ import axios, { AxiosError } from 'axios';
 import { ethers } from 'ethers';
 import { UserCredentials, UserData } from '../types/user';
 
-const API_URL = 'http://localhost:4000/api/user';
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:4000/api/user';
+
+interface AccessRequest {
+  id: string;
+  doctorId: string;
+  doctorName: string;
+  purpose: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  createdAt: string;
+  updatedAt: string;
+}
 
 // Create axios instance with default config
 const api = axios.create({
@@ -57,13 +67,18 @@ export const authService = {
     }
   },
 
-  async verifySignature(address: string, signature: string, purpose: 'login' | 'registration' | 'wallet_connection' = 'wallet_connection'): Promise<string> {
+  async verifySignature(address: string, signature: string, purpose: 'login' | 'registration' | 'wallet_connection' = 'wallet_connection', nonce?: string): Promise<string> {
     try {
       console.log('Verifying signature for address:', address);
-      const response = await api.post('/verify', { address, signature, purpose });
+      const response = await api.post('/verify', { address, signature, purpose, nonce });
       console.log('Verification response:', response.data);
       
-      // Handle both response formats
+      // For wallet_connection, we don't expect a token
+      if (purpose === 'wallet_connection') {
+        return response.data.data.verified ? 'verified' : '';
+      }
+      
+      // Handle both response formats for other purposes
       const token = response.data.data?.token || response.data.token;
       
       if (!token) {
@@ -222,5 +237,58 @@ export const authService = {
       console.error('Error decoding token:', error);
       return null;
     }
+  },
+
+  async getAccessRequests(): Promise<AccessRequest[]> {
+    try {
+      const user = this.getUserFromToken();
+      if (!user?.walletAddress) {
+        throw new Error('User wallet address not found');
+      }
+      const token = this.getToken();
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+      const response = await axios.get(
+        `${API_URL}/${user.walletAddress}/access-requests`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching access requests:', error);
+      throw error;
+    }
+  },
+
+  async reviewAccessRequest(requestId: string, status: 'APPROVED' | 'REJECTED'): Promise<void> {
+    try {
+      const user = this.getUserFromToken();
+      if (!user?.walletAddress) {
+        throw new Error('User wallet address not found');
+      }
+      await axios.post(
+        `${API_URL}/${user.walletAddress}/access-requests/${requestId}/review`,
+        { status },
+        { headers: this.getAuthHeaders() }
+      );
+    } catch (error) {
+      console.error('Error reviewing access request:', error);
+      throw error;
+    }
+  },
+
+  getAuthHeaders() {
+    const token = this.getToken();
+    if (!token) {
+      throw new Error('Token not found');
+    }
+    return {
+      Authorization: `Bearer ${token}`,
+    };
   }
 }; 

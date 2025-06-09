@@ -6,12 +6,14 @@ import {
   Button,
   Alert,
   CircularProgress,
+  Divider,
 } from '@mui/material';
 import { Add as AddIcon } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useWallet } from '../hooks/useWallet';
 import Layout from '../components/Layout';
 import UserMedicalRecords from '../components/UserMedicalRecords';
+import { AccessRequestList } from '../components/AccessRequestList';
 
 interface MedicalRecordsProps {
   onLogout: () => void;
@@ -66,9 +68,19 @@ export default function MedicalRecords({ onLogout }: MedicalRecordsProps) {
         </Alert>
       )}
 
-      <Paper elevation={3} sx={{ p: 3 }}>
+      <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
         <UserMedicalRecords />
       </Paper>
+
+      <Box sx={{ mt: 4 }}>
+        <Typography variant="h5" gutterBottom>
+          Access Requests
+        </Typography>
+        <Divider sx={{ mb: 2 }} />
+        <Paper elevation={3} sx={{ p: 3 }}>
+          <AccessRequestList />
+        </Paper>
+      </Box>
     </Layout>
   );
 } 

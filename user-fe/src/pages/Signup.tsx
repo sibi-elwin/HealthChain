@@ -16,7 +16,7 @@ import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { authService } from '../services/authService';
 import { UserCredentials } from '../types/user';
 import { useNavigate } from 'react-router-dom';
-import { ethers } from 'ethers';
+import { ethers, Signer } from 'ethers';
 import { useWallet } from '../hooks/useWallet';
 
 const Signup: React.FC = () => {
@@ -34,7 +34,7 @@ const Signup: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  const [signature, setSignature] = useState<string | null>(null);
+  const [signer, setSigner] = useState<Signer | null>(null);
   const { address, loading: walletLoading } = useWallet();
 
   useEffect(() => {
@@ -66,7 +66,7 @@ const Signup: React.FC = () => {
       setLoading(true);
       setError(null);
       
-      const { address: connectedAddress, signer } = await authService.connectWallet();
+      const { address: connectedAddress, signer: connectedSigner } = await authService.connectWallet();
       console.log('Wallet connected, address:', connectedAddress);
       
       setFormData(prev => ({
@@ -74,16 +74,16 @@ const Signup: React.FC = () => {
         walletAddress: connectedAddress,
       }));
       
-      const nonce = await authService.requestNonce(connectedAddress);
+      const nonce = await authService.requestNonce(connectedAddress, 'wallet_connection');
       console.log('Received nonce:', nonce);
       
-      const signature = await authService.signMessage(signer, nonce);
+      const signature = await authService.signMessage(connectedSigner, nonce);
       console.log('Generated signature:', signature);
       
-      await authService.verifySignature(connectedAddress, signature, 'wallet_connection');
-      console.log('Received token: Token verified');
+      await authService.verifySignature(connectedAddress, signature, 'wallet_connection', nonce);
+      console.log('Wallet connection verified');
       
-      setSignature(signature);
+      setSigner(connectedSigner);
       setSuccess(true);
       
     } catch (err: any) {
@@ -113,11 +113,9 @@ const Signup: React.FC = () => {
         throw new Error(`Please fill in all required fields: ${missingFields.join(', ')}`);
       }
 
-      if (!authService.isAuthenticated()) {
+      if (!signer) {
         throw new Error('Please connect your wallet first');
       }
-
-      const { signer, address: connectedAddress } = await authService.connectWallet();
 
       const registrationNonce = await authService.requestNonce(formData.walletAddress, 'registration');
       console.log('Received registration nonce:', registrationNonce);
@@ -128,6 +126,7 @@ const Signup: React.FC = () => {
       if (!registrationSignature) {
         throw new Error('Signature is required to derive public key.');
       }
+
       const messageHash = ethers.utils.hashMessage(registrationNonce);
       const publicKey = ethers.utils.recoverPublicKey(messageHash, registrationSignature);
       console.log('Derived public key from signature:', publicKey);

@@ -22,13 +22,12 @@ export function AccessRequestForm({ patientAddress, onSuccess, onCancel }: Acces
   const [error, setError] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
-    
     e.preventDefault();
     setLoading(true);
     setError('');
 
     try {
-      await authService.requestAccess(patientAddress, purpose);
+      await authService.createAccessRequest(patientAddress, purpose);
       onSuccess?.();
     } catch (err) {
       setError('Failed to submit access request');

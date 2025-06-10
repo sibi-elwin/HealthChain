@@ -34,6 +34,17 @@ api.interceptors.response.use(
   }
 );
 
+interface AccessRequest {
+  id: string;
+  doctorId: string;
+  patientId: string;
+  doctorWalletAddress: string;
+  reason: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  requestedAt: string;
+  reviewedAt?: string;
+}
+
 export const authService = {
   async requestNonce(address: string, purpose: 'wallet_connection' | 'registration' | 'login' = 'wallet_connection'): Promise<string> {
     try {
@@ -269,7 +280,7 @@ export const authService = {
     }
   },
 
-  async createAccessRequest(patientWalletAddress: string, reason: string): Promise<any> {
+  async createAccessRequest(patientWalletAddress: string, reason: string): Promise<AccessRequest> {
     try {
       const response = await api.post('/access-request', { patientWalletAddress, reason });
       return response.data.data.accessRequest;
@@ -279,7 +290,7 @@ export const authService = {
     }
   },
 
-  async getAccessRequests(): Promise<any> {
+  async getAccessRequests(): Promise<AccessRequest[]> {
     try {
       const response = await api.get('/access-requests');
       return response.data.data.accessRequests;
@@ -288,33 +299,4 @@ export const authService = {
       throw new Error(error.response?.data?.error || error.message || 'Failed to fetch access requests');
     }
   },
-
-  async requestAccess(patientAddress: string, purpose: string): Promise<void> {
-    try {
-      const user = this.getUserFromToken();
-      if (!user?.walletAddress) {
-        throw new Error('User wallet address not found');
-      }
-      const token = this.getToken();
-      if (!token) {
-        throw new Error('No authentication token found');
-      }
-      await axios.post(
-        `${API_URL}/access-request`,
-        {
-          patientWalletAddress: patientAddress,
-          reason: purpose
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-    } catch (error) {
-      console.error('Error requesting access:', error);
-      throw error;
-    }
-  }
 }; 

@@ -531,6 +531,7 @@ export const doctorController = {
           }
         }
       });
+      
 
       // Add audit log
       await auditService.createAuditLog(

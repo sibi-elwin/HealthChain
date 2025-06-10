@@ -22,6 +22,7 @@ export function AccessRequestForm({ patientAddress, onSuccess, onCancel }: Acces
   const [error, setError] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
+    
     e.preventDefault();
     setLoading(true);
     setError('');

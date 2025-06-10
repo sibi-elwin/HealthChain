@@ -21,6 +21,7 @@ model User {
   role          Role
   walletAddress String    @unique
   publicKey     String?   // Add public key field
+  phoneNumber   String?   // Add phone number field
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 

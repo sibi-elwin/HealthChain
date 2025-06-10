@@ -12,7 +12,8 @@ export function useWallet() {
           const provider = new BrowserProvider(window.ethereum);
           const accounts = await provider.listAccounts();
           if (accounts.length > 0) {
-            setAddress(await accounts[0].getAddress());
+            const signer = await provider.getSigner();
+            setAddress(await signer.getAddress());
           }
         } catch (error) {
           console.error('Error checking wallet connection:', error);
@@ -27,17 +28,23 @@ export function useWallet() {
     checkConnection();
 
     if (window.ethereum) {
-      window.ethereum.on('accountsChanged', (accounts: string[]) => {
-        setAddress(accounts[0] || '');
+      const handleAccountsChanged = async (accounts: string[]) => {
+        if (accounts.length > 0) {
+          const provider = new BrowserProvider(window.ethereum);
+          const signer = await provider.getSigner();
+          setAddress(await signer.getAddress());
+        } else {
+          setAddress('');
+        }
         setLoading(false);
-      });
-    }
+      };
 
-    return () => {
-      if (window.ethereum) {
-        window.ethereum.removeListener('accountsChanged', () => {});
-      }
-    };
+      window.ethereum.on('accountsChanged', handleAccountsChanged);
+
+      return () => {
+        window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
+      };
+    }
   }, []);
 
   return { address, loading };

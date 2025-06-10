@@ -24,6 +24,7 @@ export default function Register() {
     name: '',
     email: '',
     walletAddress: '',
+    phoneNumber: '',
     specialization: '',
     licenseNumber: '',
     hospital: '',
@@ -71,7 +72,10 @@ export default function Register() {
       
       // Step 4: Verify signature and get token
       console.log('Step 4: Verifying signature...');
-      await authService.verifySignature(connectedAddress, signature, 'wallet_connection');
+      const { verified } = await authService.verifySignature(connectedAddress, signature, 'wallet_connection');
+      if (!verified) {
+        throw new Error('Signature verification failed');
+      }
       console.log('Signature verified successfully');
       
       setSuccess(true);
@@ -92,13 +96,14 @@ export default function Register() {
       
       // Validate form data
       if (!formData.name || !formData.email || !formData.specialization || 
-          !formData.licenseNumber || !formData.walletAddress) {
+          !formData.licenseNumber || !formData.walletAddress || !formData.phoneNumber) {
         const missingFields = [];
         if (!formData.name) missingFields.push('Name');
         if (!formData.email) missingFields.push('Email');
         if (!formData.specialization) missingFields.push('Specialization');
         if (!formData.licenseNumber) missingFields.push('License Number');
         if (!formData.walletAddress) missingFields.push('Wallet Address');
+        if (!formData.phoneNumber) missingFields.push('Phone Number');
         
         throw new Error(`Please fill in all required fields: ${missingFields.join(', ')}`);
       }
@@ -108,6 +113,7 @@ export default function Register() {
       }
 
       // Get wallet connection for signing
+      console.log('Getting wallet connection for registration...');
       const { signer } = await authService.connectWallet();
 
       // Request a new nonce specifically for registration
@@ -118,26 +124,46 @@ export default function Register() {
       // Sign the registration nonce
       console.log('Signing registration nonce...');
       const registrationSignature = await authService.signMessage(signer, registrationNonce);
-      console.log('Generated registration signature');
+      console.log('Generated registration signature:', registrationSignature);
 
       // Get the public key from the signer
+      console.log('Deriving public key...');
       const messageHash = ethers.hashMessage(registrationNonce);
       const publicKey = SigningKey.recoverPublicKey(messageHash, registrationSignature);
       console.log('Derived public key:', publicKey);
+
+      // Verify the registration signature
+      console.log('Verifying registration signature...');
+      const { token, verified } = await authService.verifySignature(formData.walletAddress, registrationSignature, 'registration');
+      if (!verified) {
+        throw new Error('Registration signature verification failed');
+      }
+      console.log('Registration signature verified successfully');
 
       // Prepare registration data with the new signature and public key
       const registrationData = {
         ...formData,
         signature: registrationSignature,
-        publicKey
+        publicKey,
+        nonce: registrationNonce
       };
 
-      console.log('Submitting registration with data:', registrationData);
+      console.log('Registration data details:', {
+        name: registrationData.name,
+        email: registrationData.email,
+        walletAddress: registrationData.walletAddress,
+        specialization: registrationData.specialization,
+        licenseNumber: registrationData.licenseNumber,
+        phoneNumber: registrationData.phoneNumber,
+        signature: registrationSignature,
+        publicKey: publicKey,
+        nonce: registrationNonce
+      });
 
       // Register doctor with backend
-      const response = await authService.register(registrationData);
+      const { doctor } = await authService.register(registrationData);
       
-      console.log('Registration successful:', response);
+      console.log('Registration successful:', doctor);
       navigate('/dashboard', { replace: true }); // Redirect after successful registration
     } catch (err: any) {
       console.error('Registration error:', err);
@@ -213,6 +239,17 @@ export default function Register() {
               autoComplete="email"
               type="email"
               value={formData.email}
+              onChange={handleChange}
+            />
+            <TextField
+              margin="normal"
+              required
+              fullWidth
+              id="phoneNumber"
+              label="Phone Number"
+              name="phoneNumber"
+              type="tel"
+              value={formData.phoneNumber}
               onChange={handleChange}
             />
             <TextField

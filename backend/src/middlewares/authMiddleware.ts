@@ -94,7 +94,7 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
     return res.status(401).json({ error: 'Invalid or expired token' });
   } catch (error) {
     console.error('Auth middleware error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(401).json({ error: 'Invalid or expired token' });
   }
 }
 

@@ -25,6 +25,7 @@ const Signup: React.FC = () => {
     name: '',     
     email: '',        
     walletAddress: '',
+    phoneNumber: '',
     dob: '',
     gender: '',
     allergies: '',
@@ -203,6 +204,17 @@ const Signup: React.FC = () => {
               name="email"
               type="email"
               value={formData.email}
+              onChange={handleInputChange}
+              margin="normal"
+              required
+            />
+
+            <TextField
+              fullWidth
+              label="Phone Number"
+              name="phoneNumber"
+              type="tel"
+              value={formData.phoneNumber}
               onChange={handleInputChange}
               margin="normal"
               required

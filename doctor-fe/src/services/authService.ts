@@ -66,7 +66,14 @@ export const authService = {
       if (!token) return false;
 
       const response = await api.get('/validate-token');
-      return response.status === 200;
+      
+      // For wallet connection tokens, we just need to check if verified is true
+      if (response.data.data?.verified) {
+        return true;
+      }
+      
+      // For regular tokens, we need a user object
+      return !!response.data.data?.user;
     } catch (error) {
       console.error('Token validation error:', error);
       localStorage.removeItem('token'); // Clear invalid token
@@ -74,15 +81,23 @@ export const authService = {
     }
   },
 
-  async verifySignature(address: string, signature: string, purpose: 'wallet_connection' | 'registration' | 'login' = 'wallet_connection'): Promise<string> {
+  async verifySignature(address: string, signature: string, purpose: 'wallet_connection' | 'registration' | 'login' = 'wallet_connection'): Promise<{ token: string; verified: boolean }> {
     try {
       console.log('Verifying signature for address:', address);
+      console.log('Signature to verify:', signature);
+      console.log('Purpose:', purpose);
+      
       const response = await api.post('/verify', { address, signature, purpose });
       console.log('Verification response:', response.data);
       
-      // Handle both response formats
-      const token = response.data.data?.token || response.data.token;
+      // For wallet_connection, we don't need to store the token
+      if (purpose === 'wallet_connection') {
+        const verified = response.data.data?.verified || false;
+        return { token: '', verified };
+      }
       
+      // For other purposes, we need the token
+      const token = response.data.data?.token || response.data.token;
       if (!token) {
         console.error('Invalid response format:', response.data);
         throw new Error('No token received');
@@ -90,7 +105,7 @@ export const authService = {
       
       console.log('Token received:', token);
       localStorage.setItem('token', token);
-      return token;
+      return { token, verified: true };
     } catch (error: any) {
       console.error('Signature verification error:', error);
       if (error.response) {
@@ -108,7 +123,7 @@ export const authService = {
     licenseNumber: string;
     hospital?: string;
     signature: string;
-  }): Promise<{ token: string; doctor: any }> {
+  }): Promise<{ doctor: any }> {
     try {
       console.log('Registering doctor with data:', {
         ...doctorData,
@@ -130,14 +145,13 @@ export const authService = {
       const response = await api.post('/register', doctorData);
       console.log('Registration response:', response.data);
       
-      if (!response.data.data?.user || !response.data.data?.token) {
+      if (!response.data.data?.user) {
         console.error('Invalid response format:', response.data);
         throw new Error('Registration failed - invalid response');
       }
       
-      const { token, user } = response.data.data;
-      localStorage.setItem('token', token);
-      return { token, doctor: user };
+      const { user } = response.data.data;
+      return { doctor: user };
     } catch (error: any) {
       console.error('Registration error:', error);
       if (error.response) {

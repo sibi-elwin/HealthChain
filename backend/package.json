@@ -9,6 +9,7 @@
     "@prisma/client": "^6.8.2",
     "@types/bcrypt": "^5.0.2",
     "@types/cors": "^2.8.18",
+    "axios": "^1.9.0",
     "backend-contract": "file:../backend-contract",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.5",

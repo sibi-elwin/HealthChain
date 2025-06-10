@@ -5,6 +5,7 @@ import { UserRole } from "backend-contract/src/services/contractService";
 import { auditService } from "../services/auditService";
 import { authenticate, generateNonce } from "../services/authService";
 import { SessionService } from "../services/sessionService";
+import { WebhookService } from "../services/webhookService";
 
 const prisma = new PrismaClient();
 
@@ -36,11 +37,38 @@ export const doctorController = {
       const { token } = authenticate(address, signature, purpose);
       console.log('Token generated:', token);
 
-      // Find doctor by wallet address
+      // For wallet connection, just verify the signature
+      if (purpose === 'wallet_connection') {
+        res.json({ 
+          message: "Signature verified successfully",
+          data: { 
+            token,
+            verified: true
+          }
+        });
+        return;
+      }
+
+      
+      
+
+      // For registration, we don't expect the user to exist
+      if (purpose === 'registration') {
+        res.json({ 
+          message: "Signature verified successfully",
+          data: { 
+            token,
+            verified: true
+          }
+        });
+        return;
+      }
+      // Find user by wallet address
       const user = await prisma.user.findUnique({
         where: { walletAddress: address }
       });
 
+      // For login, user must exist
       if (!user) {
         res.status(401).json({ error: 'Doctor not found' });
         return;
@@ -86,6 +114,29 @@ export const doctorController = {
         return;
       }
 
+      // For wallet connection tokens, we don't need to check for user/profile
+      const token = req.headers.authorization?.split(' ')[1];
+      if (!token) {
+        res.status(401).json({ error: "No token provided" });
+        return;
+      }
+
+      // Check if this is a wallet connection token
+      const sessionService = new SessionService();
+      const authSession = await sessionService.validateAuthSession(token);
+      
+      if (authSession) {
+        // This is a wallet connection token, just verify it's valid
+        res.json({
+          message: "Token is valid",
+          data: {
+            verified: true
+          }
+        });
+        return;
+      }
+
+      // For regular tokens, check user and profile
       const user = await prisma.user.findUnique({
         where: { id: req.user.id },
         include: {
@@ -93,10 +144,23 @@ export const doctorController = {
         }
       });
 
-      if (!user || !user.doctorProfile) {
-        res.status(401).json({ error: "Invalid doctor account" });
+      if (!user) {
+        res.status(401).json({ error: "User not found" });
         return;
       }
+
+      if (!user.doctorProfile) {
+        res.status(401).json({ error: "Doctor profile not found" });
+        return;
+      }
+
+      // Create audit log for token validation
+      await auditService.createAuditLog(
+        user.id,
+        'TOKEN_VALIDATION',
+        'Token validated successfully',
+        req
+      );
 
       res.json({
         message: "Token is valid",
@@ -106,13 +170,14 @@ export const doctorController = {
             email: user.email,
             name: user.name,
             role: user.role,
-            walletAddress: user.walletAddress
+            walletAddress: user.walletAddress,
+            doctorProfile: user.doctorProfile
           }
         }
       });
     } catch (err: any) {
       console.error('Token validation error:', err);
-      res.status(500).json({ error: err.message });
+      res.status(401).json({ error: "Invalid or expired token" });
     }
   },
 
@@ -131,7 +196,8 @@ export const doctorController = {
         licenseNumber,
         hospital,
         signature,
-        publicKey
+        publicKey,
+        phoneNumber
       } = req.body;
 
       // Validate required fields
@@ -142,7 +208,8 @@ export const doctorController = {
         specialization: 'Specialization',
         licenseNumber: 'License Number',
         signature: 'Signature',
-        publicKey: 'Public Key'
+        publicKey: 'Public Key',
+        phoneNumber: 'Phone Number'
       };
 
       const missingFields = Object.entries(requiredFields)
@@ -164,85 +231,76 @@ export const doctorController = {
         return;
       }
 
-      // Verify the signature with registration purpose
-      try {
-        const { token } = authenticate(walletAddress, signature, 'registration');
-        
-        // Create user and doctor profile in database
-        const user = await prisma.user.create({
-          data: {
-            name,
-            email,
-            role: 'doctor',
-            walletAddress,
-            publicKey,
-            doctorProfile: {
-              create: {
-                specialization,
-                licenseNumber,
-                hospital
-              }
+      // Create user and doctor profile in database
+      const user = await prisma.user.create({
+        data: {
+          name,
+          email,
+          role: 'doctor',
+          walletAddress,
+          publicKey,
+          phoneNumber,
+          doctorProfile: {
+            create: {
+              specialization,
+              licenseNumber,
+              hospital
             }
-          },
-          include: {
-            doctorProfile: true
           }
-        });
-
-        // Add user role to blockchain
-        try {
-          await blockchainService.addUserRole(walletAddress, UserRole.DOCTOR);
-          console.log('Doctor role added to blockchain successfully');
-
-          // Verify the role was added
-          const hasRole = await blockchainService.checkUserRole(walletAddress, UserRole.DOCTOR);
-          if (!hasRole) {
-            throw new Error('Failed to verify role addition to blockchain');
-          }
-        } catch (blockchainError) {
-          console.error('Failed to add doctor role to blockchain:', blockchainError);
-          // Rollback database changes if blockchain role addition fails
-          try {
-            await prisma.doctor.delete({
-              where: { userId: user.id }
-            });
-            await prisma.user.delete({
-              where: { walletAddress }
-            });
-          } catch (rollbackError) {
-            console.error('Failed to rollback database changes:', rollbackError);
-          }
-          throw new Error('Failed to add doctor role to blockchain. Registration incomplete.');
+        },
+        include: {
+          doctorProfile: true
         }
+      });
 
-        // Log the registration
-        await auditService.createAuditLog(
-          user.id,
-          'DOCTOR_REGISTRATION',
-          JSON.stringify({
-            specialization,
-            licenseNumber,
-            hospital
-          }),
-          req
-        );
+      // Add user role to blockchain
+      try {
+        await blockchainService.addUserRole(walletAddress, UserRole.DOCTOR);
+        console.log('Doctor role added to blockchain successfully');
 
-        console.log('Doctor registration successful:', {
-          user,
-          token
-        });
-
-        res.status(201).json({
-          message: "Doctor registered successfully",
-          data: {
-            user,
-            token
-          }
-        });
-      } catch (err: any) {
-        console.error('Signature verification failed:', err);
-        res.status(401).json({ error: "Invalid signature" });
+        // Verify the role was added
+        const hasRole = await blockchainService.checkUserRole(walletAddress, UserRole.DOCTOR);
+        if (!hasRole) {
+          throw new Error('Failed to verify role addition to blockchain');
+        }
+      } catch (blockchainError) {
+        console.error('Failed to add doctor role to blockchain:', blockchainError);
+        // Rollback database changes if blockchain role addition fails
+        try {
+          await prisma.doctor.delete({
+            where: { userId: user.id }
+          });
+          await prisma.user.delete({
+            where: { walletAddress }
+          });
+        } catch (rollbackError) {
+          console.error('Failed to rollback database changes:', rollbackError);
+        }
+        throw new Error('Failed to add doctor role to blockchain. Registration incomplete.');
       }
+
+      // Log the registration
+      await auditService.createAuditLog(
+        user.id,
+        'DOCTOR_REGISTRATION',
+        JSON.stringify({
+          specialization,
+          licenseNumber,
+          hospital
+        }),
+        req
+      );
+
+      console.log('Doctor registration successful:', {
+        user
+      });
+
+      res.status(201).json({
+        message: "Doctor registered successfully",
+        data: {
+          user
+        }
+      });
     } catch (err: any) {
       console.error('Doctor registration error:', err);
       if (err.code === 'P2002') {
@@ -531,7 +589,16 @@ export const doctorController = {
           }
         }
       });
-      
+      await WebhookService.sendWhatsAppNotification({
+        to: patient.phoneNumber || "",
+        doctor: {
+          name: doctor.name,
+          specialization: doctor.doctorProfile.specialization,
+          registrationNumber: doctor.doctorProfile.licenseNumber,
+          hospital: doctor.doctorProfile.hospital || ""
+        },
+        patientEmail: patient.email
+      });
 
       // Add audit log
       await auditService.createAuditLog(

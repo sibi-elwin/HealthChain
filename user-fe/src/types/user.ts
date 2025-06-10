@@ -3,6 +3,7 @@ export interface UserCredentials {
   email: string;
   walletAddress: string;
   signature?: string;
+  phoneNumber?: string;
   // Patient specific fields
   dob: string;
   gender: string;
@@ -17,6 +18,7 @@ export interface UserData {
   email: string;
   role: 'patient' | 'doctor' | 'admin';
   walletAddress: string;
+  phoneNumber?: string;
   createdAt: string;
   updatedAt: string;
   patientProfile?: {

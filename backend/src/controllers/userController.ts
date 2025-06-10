@@ -121,7 +121,8 @@ export const userController = {
         bloodGroup,
         emergencyContact,
         signature,
-        publicKey
+        publicKey,
+        phoneNumber
       } = req.body;
 
       // Validate required fields
@@ -132,7 +133,8 @@ export const userController = {
         dob: 'Date of Birth',
         gender: 'Gender',
         signature: 'Signature',
-        publicKey: 'Public Key'
+        publicKey: 'Public Key',
+        phoneNumber: 'Phone Number'
       };
 
       const missingFields = Object.entries(requiredFields)
@@ -173,6 +175,7 @@ export const userController = {
             role: 'patient',
             walletAddress,
             publicKey,
+            phoneNumber,
             patientProfile: {
               create: {
                 dob: dobDate,

@@ -692,6 +692,7 @@ export const userController = {
           name: true,
           email: true,
           role: true,
+          publicKey: true,
           walletAddress: true,
           encSalt: true,
           phoneNumber: true

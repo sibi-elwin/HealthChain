@@ -593,5 +593,60 @@ export const secureStorageService = {
       console.error('Error fetching medical records:', error);
       throw new Error(error.message || 'Failed to fetch medical records');
     }
+  },
+
+  async encryptWithPublicKey(rawAesKey: Uint8Array, doctorPublicKey: string): Promise<string> {
+    try {
+      // Convert the base64 doctor's public key to ArrayBuffer
+      const doctorPublicKeyBuffer = Uint8Array.from(atob(doctorPublicKey), c => c.charCodeAt(0));
+      
+      // Import the doctor's public key
+      const doctorPublicKeyCryptoKey = await subtleCrypto.importKey(
+        "spki",
+        doctorPublicKeyBuffer,
+        {
+          name: "RSA-OAEP",
+          hash: "SHA-256"
+        },
+        false,
+        ["encrypt"]
+      );
+      
+      // Encrypt the raw AES key with the doctor's public key
+      const encryptedData = await subtleCrypto.encrypt(
+        {
+          name: "RSA-OAEP"
+        },
+        doctorPublicKeyCryptoKey,
+        rawAesKey
+      );
+      
+      // Convert the encrypted data to base64 for storage
+      return btoa(String.fromCharCode(...new Uint8Array(encryptedData)));
+    } catch (error) {
+      console.error('Error encrypting with public key:', error);
+      throw new Error('Failed to encrypt with public key');
+    }
+  },
+
+  async reencryptAesKeyForDoctor(
+    patientPassword: string,
+    patientEncSalt: string,
+    doctorPublicKey: string,
+    encryptedAesKey: string
+  ): Promise<string> {
+    try {
+      // 1. Derive KEK from patient's password and encSalt
+      const patientKEK = await this.deriveKEK(patientPassword, patientEncSalt);
+      
+      // 2. Decrypt the AES key using patient's KEK
+      const rawAesKey = await this.decryptAESKeyWithKEK(encryptedAesKey, patientKEK);
+      
+      // 3. Encrypt the raw AES key with doctor's public key
+      return await this.encryptWithPublicKey(rawAesKey, doctorPublicKey);
+    } catch (error) {
+      console.error('Error reencrypting AES key:', error);
+      throw new Error('Failed to reencrypt AES key for doctor');
+    }
   }
 }; 

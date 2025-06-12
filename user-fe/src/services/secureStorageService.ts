@@ -74,9 +74,8 @@ export interface MedicalRecord {
   }[];
   blockchainTxHash?: string;
   createdAt: string;
-  rawAesKey?: string;
   fileType?: string;
-  aesKey?: string;
+  encryptedAesKeyForPatient?: string;
 }
 
 // Interface for NFT.Storage metadata
@@ -220,64 +219,160 @@ export const secureStorageService = {
     };
   },
 
+  // Derive Key Encryption Key (KEK) using PBKDF2
+  async deriveKEK(password: string, salt: string): Promise<CryptoKey> {
+    try {
+      // Convert password and salt to Uint8Array
+      const passwordBuffer = new TextEncoder().encode(password);
+      const saltBuffer = new TextEncoder().encode(salt);
+
+      // Import password as raw key material
+      const passwordKey = await subtleCrypto.importKey(
+        'raw',
+        passwordBuffer,
+        'PBKDF2',
+        false,
+        ['deriveBits', 'deriveKey']
+      );
+
+      // Derive KEK using PBKDF2
+      const kek = await subtleCrypto.deriveKey(
+        {
+          name: 'PBKDF2',
+          salt: saltBuffer,
+          iterations: 100000, // High iteration count for security
+          hash: 'SHA-256'
+        },
+        passwordKey,
+        {
+          name: 'AES-GCM',
+          length: 256
+        },
+        false, // Not extractable
+        ['encrypt', 'decrypt']
+      );
+
+      return kek;
+    } catch (error) {
+      console.error('Error deriving KEK:', error);
+      throw new Error('Failed to derive encryption key');
+    }
+  },
+
+  // Encrypt AES key with KEK
+  async encryptAESKeyWithKEK(aesKey: CryptoKey, kek: CryptoKey): Promise<string> {
+    try {
+      // Export the AES key as raw bytes
+      const rawAesKey = await subtleCrypto.exportKey('raw', aesKey);
+      
+      // Generate random IV
+      const iv = window.crypto.getRandomValues(new Uint8Array(12));
+      
+      // Encrypt the AES key with KEK
+      const encryptedAesKey = await subtleCrypto.encrypt(
+        {
+          name: 'AES-GCM',
+          iv
+        },
+        kek,
+        rawAesKey
+      );
+
+      // Combine IV and encrypted data
+      const combinedData = new Uint8Array(iv.length + encryptedAesKey.byteLength);
+      combinedData.set(iv, 0);
+      combinedData.set(new Uint8Array(encryptedAesKey), iv.length);
+
+      // Convert to base64 for storage
+      return btoa(String.fromCharCode(...combinedData));
+    } catch (error) {
+      console.error('Error encrypting AES key:', error);
+      throw new Error('Failed to encrypt AES key');
+    }
+  },
+
   // Upload medical record with encryption
   async uploadMedicalRecord(
     file: File,
     patientWalletAddress: string,
-    description?: string
+    description?: string,
+    password?: string
   ): Promise<{ record: MedicalRecord, rawAesKey: string }> {
     try {
-      // Generate AES key (as CryptoKey)
+      if (!password) {
+        throw new Error('Password is required for encryption');
+      }
+
+      // Get user's encSalt from backend
+      const userResponse = await fetch(`http://localhost:4000/api/user/${patientWalletAddress}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+
+      if (!userResponse.ok) {
+        throw new Error('Failed to fetch user data');
+      }
+
+      const { data: { user } } = await userResponse.json();
+      if (!user.encSalt) {
+        throw new Error('User encryption salt not found');
+      }
+
+      // Generate AES key for file encryption
       const aesKeyCryptoKey = await this.generateAESKey();
 
-      // Encrypt file with the CryptoKey
+      // Encrypt file with the AES key
       const encryptedContentBuffer = await this.encryptFile(file, aesKeyCryptoKey);
 
-      // Export the raw key bytes as Hex string for storage/transfer
-      const rawAesKeyBytes = await subtleCrypto.exportKey('raw', aesKeyCryptoKey);
-      const rawAesKey = Buffer.from(rawAesKeyBytes).toString('hex'); // Convert ArrayBuffer to Hex string
-      console.log('Generated raw AES key (Hex):', rawAesKey); // Log for understanding
+      // Derive KEK using password and encSalt
+      const kek = await this.deriveKEK(password, user.encSalt);
 
-      // Upload the encrypted data (ArrayBuffer) to IPFS via Pinata
+      // Encrypt the AES key with KEK
+      const encryptedAesKey = await this.encryptAESKeyWithKEK(aesKeyCryptoKey, kek);
+
+      // Export the raw AES key for immediate use
+      const rawAesKeyBytes = await subtleCrypto.exportKey('raw', aesKeyCryptoKey);
+      const rawAesKey = Buffer.from(rawAesKeyBytes).toString('hex');
+
+      // Upload the encrypted data to IPFS
       const ipfsHash = await this.uploadToIPFS(encryptedContentBuffer);
 
       // Get signer from MetaMask for on-chain transaction
       if (!window.ethereum) {
         throw new Error('MetaMask is not installed');
       }
-      const provider = new ethers.providers.Web3Provider(window.ethereum);
+      const provider = new ethers.providers.Web3Provider(window.ethereum as any);
       await provider.send('eth_requestAccounts', []);
       const signer = provider.getSigner();
-      const userAddress = await signer.getAddress(); // This should be the patient's address
 
-      // Add record on-chain using patient's wallet
-      const fileType = file.type || '';
-      console.log('Address',userAddress);
-      // Assuming addMedicalRecordOnChain takes signer, patientAddress, ipfsHash, fileType, description
+      // Add record on-chain
+      const contractAddress = import.meta.env.VITE_MEDICAL_RECORDS_CONTRACT_ADDRESS;
+      if (!contractAddress) throw new Error('MedicalRecords contract address not set');
+
       const txHash = await addMedicalRecordOnChain(
         signer,
-        userAddress, // Use the connected patient's address
+        patientWalletAddress,
         ipfsHash,
-        fileType,
+        file.type,
         description || ''
       );
+      console.log('On-chain record added, transaction hash:', txHash);
 
-      // Notify backend for off-chain storage/audit
-      // Use the patient's wallet address in the URL
-      const response = await fetch(`http://localhost:4000/api/user/${userAddress}/medical-records`, {
+      // Save record metadata in backend
+      const response = await fetch(`http://localhost:4000/api/user/${patientWalletAddress}/medical-records`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`, // Assuming this endpoint is protected
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
         },
         body: JSON.stringify({
           title: file.name,
-          description,
-          ipfsHash,
+          description: description || '',
+          ipfsHash: ipfsHash,
           blockchainTxHash: txHash,
-          fileType: fileType,
-          // Include the raw AES key in the backend request (INSECURE - as it was before)
-          rawAesKey: rawAesKey
+          fileType: file.type,
+          encryptedAesKeyForPatient: encryptedAesKey // Send encrypted AES key instead of raw key
         }),
       });
 
@@ -287,7 +382,7 @@ export const secureStorageService = {
       }
 
       const { data } = await response.json();
-      // Return the record data along with the generated raw AES key
+      // Return the record data along with the raw AES key for immediate use
       return { ...data.record, rawAesKey };
 
     } catch (error: any) {
@@ -296,17 +391,35 @@ export const secureStorageService = {
     }
   },
 
-  // Fetch encrypted data from IPFS and decrypt it using Web Crypto API (Revert to using rawAesKey)
-  // This function will be used for decryption by both patients (using rawAesKey from DB)
-  // and doctors (using encryptedAesKey from AccessGrant, which stored the raw key).
+  // Fetch encrypted data from IPFS and decrypt it using Web Crypto API
   async decryptMedicalRecord(
     ipfsHash: string,
-    rawAesKeyHex: string // Accept the raw AES key as Hex string
+    encryptedAesKey: string,
+    password: string,
+    encSalt: string
   ): Promise<Uint8Array> {
     try {
       console.log(`Fetching encrypted data from IPFS for hash: ${ipfsHash}`);
-      // Fetch the combined IV + ciphertext data from IPFS gateway as ArrayBuffer
-      const ipfsGatewayUrl = 'https://ipfs.io/ipfs/'; // Example public gateway
+      
+      // First, derive the KEK using the password and salt
+      const kek = await this.deriveKEK(password, encSalt);
+      
+      // Decrypt the AES key using the KEK
+      const decryptedAesKey = await this.decryptAESKeyWithKEK(encryptedAesKey, kek);
+      
+      // Import the decrypted AES key
+      const aesKeyCryptoKey = await subtleCrypto.importKey(
+        'raw',
+        decryptedAesKey,
+        {
+          name: "AES-GCM",
+        },
+        true,
+        ["encrypt", "decrypt"]
+      );
+
+      // Fetch the encrypted file from IPFS
+      const ipfsGatewayUrl = 'https://ipfs.io/ipfs/';
       const response = await fetch(`${ipfsGatewayUrl}${ipfsHash}`);
 
       if (!response.ok) {
@@ -321,25 +434,7 @@ export const secureStorageService = {
       const iv = combinedData.slice(0, 12);
       const ciphertext = combinedData.slice(12);
 
-      console.log('Encrypted data (combined IV+ciphertext) fetched. Separating IV and ciphertext...');
-      console.log('IV (Uint8Array, first 12 bytes):', iv.slice(0, 12));
-      console.log('IV length:', iv.length);
-      console.log('Ciphertext (Uint8Array, first 10 bytes):', ciphertext.slice(0, 10));
-      console.log('Ciphertext size:', ciphertext.length);
-
-      // Import the raw AES key (Hex string) into a CryptoKey
-      const keyBytes = new Uint8Array(rawAesKeyHex.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16))); // Revert byte type hint if not needed before
-      const aesKeyCryptoKey = await subtleCrypto.importKey(
-        'raw',
-        keyBytes,
-        {
-          name: "AES-GCM",
-        },
-        true, // exportable (can be false if not needed)
-        ["encrypt", "decrypt"]
-      );
-
-      console.log('Imported AES-GCM CryptoKey. Starting decryption...');
+      console.log('Encrypted data fetched. Starting decryption...');
 
       // Decrypt the ciphertext using the imported key and IV
       const decryptedContentBuffer = await subtleCrypto.decrypt(
@@ -351,16 +446,42 @@ export const secureStorageService = {
         ciphertext
       );
 
-      console.log('Web Crypto API decryption operation complete.');
-      console.log('File decrypted successfully using Web Crypto API.');
-      return new Uint8Array(decryptedContentBuffer); // Return decrypted data as Uint8Array
+      console.log('File decrypted successfully.');
+      return new Uint8Array(decryptedContentBuffer);
 
     } catch (error: any) {
-      console.error('Error decrypting medical record with Web Crypto API:', error);
+      console.error('Error decrypting medical record:', error);
       if (error.name === 'OperationError') {
-        console.error('Possible cause: Authentication Tag Mismatch (incorrect key, IV, or ciphertext).');
+        throw new Error('Decryption failed. Please check your password and try again.');
       }
       throw new Error(error.message || 'Failed to decrypt medical record');
+    }
+  },
+
+  // Helper function to decrypt AES key with KEK
+  async decryptAESKeyWithKEK(encryptedAesKey: string, kek: CryptoKey): Promise<Uint8Array> {
+    try {
+      // Decode the base64 encrypted AES key
+      const encryptedData = Uint8Array.from(atob(encryptedAesKey), c => c.charCodeAt(0));
+      
+      // Separate IV (first 12 bytes) and encrypted key
+      const iv = encryptedData.slice(0, 12);
+      const encryptedKey = encryptedData.slice(12);
+
+      // Decrypt the AES key
+      const decryptedKey = await subtleCrypto.decrypt(
+        {
+          name: "AES-GCM",
+          iv: iv
+        },
+        kek,
+        encryptedKey
+      );
+
+      return new Uint8Array(decryptedKey);
+    } catch (error: any) {
+      console.error('Error decrypting AES key:', error);
+      throw new Error('Failed to decrypt AES key');
     }
   },
 
@@ -374,7 +495,7 @@ export const secureStorageService = {
   ): Promise<void> {
     try {
       if (!window.ethereum) throw new Error('MetaMask is not installed');
-      const provider = new ethers.providers.Web3Provider(window.ethereum);
+      const provider = new ethers.providers.Web3Provider(window.ethereum as any);
       await provider.send('eth_requestAccounts', []);
       const signer = provider.getSigner();
       const connectedAddress = await signer.getAddress();
@@ -410,7 +531,7 @@ export const secureStorageService = {
           doctorAddress: doctorWalletAddress,
           transactionHash, // Pass transaction hash
           // Pass the raw AES key to the backend to be stored in the AccessGrant (INSECURE - as it was before)
-          encryptedAesKey: rawAesKey // The backend field name is misleading, it stored the raw key here
+          encryptedAesKeyForPatient: rawAesKey // The backend field name is misleading, it stored the raw key here
         }),
       });
 
@@ -453,12 +574,11 @@ export const secureStorageService = {
   },
 
   // Get medical records for a user (Patient viewing their own records)
-  // This function is called by the patient to view their own records.
   async getMedicalRecords(patientWalletAddress: string): Promise<MedicalRecord[]> {
     try {
       const response = await fetch(`http://localhost:4000/api/user/${patientWalletAddress}/medical-records`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`, // Assuming this endpoint is protected
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
         },
       });
 
@@ -468,15 +588,7 @@ export const secureStorageService = {
       }
 
       const { data } = await response.json();
-      // Map the backend's rawAesKey to the frontend's aesKey for compatibility with old code
-      const recordsWithRawAesKey = data.records.map((record: any) => ({
-          ...record,
-          // Map the backend's rawAesKey to the frontend's aesKey
-          // This is where the patient gets the raw key for decryption
-          aesKey: record.rawAesKey // This was the old structure
-      }));
-
-      return recordsWithRawAesKey;
+      return data.records;
     } catch (error: any) {
       console.error('Error fetching medical records:', error);
       throw new Error(error.message || 'Failed to fetch medical records');

@@ -7,11 +7,21 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { auditService } from "../services/auditService";
 import { ethers } from 'ethers';
-import { createHash } from 'crypto';
+import { createHash, randomBytes } from 'crypto';
 import { SessionService } from "../services/sessionService";
 import { verifySignature } from "../utils/verifySignature";
 
 const prisma = new PrismaClient();
+
+// Helper function to generate salts
+const generateSalt = (): string => {
+  return randomBytes(32).toString('hex');
+};
+
+// Helper function to hash password with salt
+const hashPassword = async (password: string, salt: string): Promise<string> => {
+  return bcrypt.hash(password + salt, 10);
+};
 
 export const userController = {
   requestNonce: (req: Request, res: Response): void => {
@@ -108,7 +118,8 @@ export const userController = {
     try {
       console.log('Registration request received:', {
         ...req.body,
-        signature: req.body.signature ? 'present' : 'missing'
+        signature: req.body.signature ? 'present' : 'missing',
+        password: '***' // Mask password in logs
       });
 
       const { 
@@ -122,7 +133,8 @@ export const userController = {
         emergencyContact,
         signature,
         publicKey,
-        phoneNumber
+        phoneNumber,
+        password
       } = req.body;
 
       // Validate required fields
@@ -134,7 +146,8 @@ export const userController = {
         gender: 'Gender',
         signature: 'Signature',
         publicKey: 'Public Key',
-        phoneNumber: 'Phone Number'
+        phoneNumber: 'Phone Number',
+        password: 'Password'
       };
 
       const missingFields = Object.entries(requiredFields)
@@ -163,6 +176,13 @@ export const userController = {
         return;
       }
 
+      // Generate salts
+      const authSalt = generateSalt();
+      const encSalt = generateSalt();
+
+      // Hash password with auth salt
+      const hashedPassword = await hashPassword(password, authSalt);
+
       // Verify the signature with registration purpose
       try {
         const { token } = authenticate(walletAddress, signature, 'registration');
@@ -176,6 +196,9 @@ export const userController = {
             walletAddress,
             publicKey,
             phoneNumber,
+            password: hashedPassword,
+            authSalt,
+            encSalt,
             patientProfile: {
               create: {
                 dob: dobDate,
@@ -219,14 +242,24 @@ export const userController = {
           );
 
           console.log('Registration successful:', {
-            user,
+            user: {
+              ...user,
+              password: undefined,
+              authSalt: undefined,
+              encSalt: undefined
+            },
             token
           });
 
           res.status(201).json({
             message: "User registered successfully",
             data: {
-              user,
+              user: {
+                ...user,
+                password: undefined,
+                authSalt: undefined,
+                encSalt: undefined
+              },
               token
             }
           });
@@ -247,7 +280,7 @@ export const userController = {
           }
           throw new Error('Failed to add user role to blockchain. Registration incomplete.');
         }
-      } catch (err: any) {
+      } catch (err) {
         console.error('Signature verification failed:', err);
         res.status(401).json({ error: "Invalid signature" });
       }
@@ -400,14 +433,29 @@ export const userController = {
 
       // The user is a patient viewing their own records.
       // The records they see are the ones they created (recordsReceived).
-      // These records should include the rawAesKey if it's stored in the DB.
+      // These records should include the encryptedAesKey if it's stored in the DB.
 
       // Map the database records to the desired response format.
-      // Ensure rawAesKey is included.
+      // Ensure encryptedAesKey is included.
       const records = dbUser.recordsReceived.map((dbRecord) => ({
-          ...dbRecord, // Includes id, title, description, ipfsHash, rawAesKey, fileType, etc.
-          // Do not include blockchainData here unless explicitly needed and fetched
-          // blockchainData: undefined // Explicitly set if not fetching blockchain details here
+          id: dbRecord.id,
+          title: dbRecord.title,
+          description: dbRecord.description,
+          ipfsHash: dbRecord.ipfsHash,
+          createdById: dbRecord.createdById,
+          forUserId: dbRecord.forUserId,
+          blockchainTxHash: dbRecord.blockchainTxHash,
+          fileType: dbRecord.fileType,
+          createdAt: dbRecord.createdAt,
+          encryptedAesKeyForPatient: dbRecord.encryptedAesKeyForPatient,
+          accessGrants: dbRecord.accessGrants.map(grant => ({
+            user: {
+              walletAddress: grant.user.walletAddress,
+              name: grant.user.name,
+              email: grant.user.email
+            },
+            encryptedAesKey: grant.encryptedAesKey
+          }))
       }));
 
       // Add audit log for medical records viewing
@@ -420,16 +468,15 @@ export const userController = {
 
       res.json({ data: { records } });
     } catch (error: any) {
-      console.error('Error fetching medical records:', error);
-      res.status(500).json({ error: 'Failed to fetch medical records' });
+      console.error('Error getting medical records:', error);
+      res.status(500).json({ error: error.message || 'Failed to get medical records' });
     }
   },
 
   async uploadMedicalRecord(req: Request, res: Response) {
     try {
       const { walletAddress } = req.params;
-      // Destructure rawAesKey, fileType, title, description, ipfsHash, blockchainTxHash from the request body
-      const { title, description, ipfsHash, blockchainTxHash, rawAesKey, fileType } = req.body;
+      const { title, description, ipfsHash, blockchainTxHash, encryptedAesKeyForPatient, fileType } = req.body;
 
       // Get user from database
       const user = await prisma.user.findUnique({
@@ -449,7 +496,7 @@ export const userController = {
           createdById: user.id,
           forUserId: user.id, // Record is for the patient who uploaded it
           blockchainTxHash: blockchainTxHash || null,
-          rawAesKey: rawAesKey || null, // Save the raw AES key
+          encryptedAesKeyForPatient: encryptedAesKeyForPatient || null, // Store the encrypted AES key
           fileType: fileType || null // Save the fileType
         }
       });
@@ -627,6 +674,53 @@ export const userController = {
     //   console.error('Error retrieving public key:', error);
     //   res.status(500).json({ error: error.message || 'Failed to retrieve public key' });
     // }
+  },
+
+  async getUserByWalletAddress(req: Request, res: Response): Promise<void> {
+    try {
+      const { walletAddress } = req.params;
+
+      if (!walletAddress) {
+        res.status(400).json({ error: "Wallet address is required" });
+        return;
+      }
+
+      const user = await prisma.user.findUnique({
+        where: { walletAddress },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          walletAddress: true,
+          encSalt: true,
+          phoneNumber: true
+        }
+      });
+
+      if (!user) {
+        res.status(404).json({ error: "User not found" });
+        return;
+      }
+
+      // Add audit log for user lookup
+      await auditService.createAuditLog(
+        req.user?.id || 'system',
+        'USER_LOOKUP',
+        `User details retrieved for wallet address: ${walletAddress}`,
+        req
+      );
+
+      res.json({
+        message: "User details retrieved successfully",
+        data: {
+          user
+        }
+      });
+    } catch (err: any) {
+      console.error('Error retrieving user details:', err);
+      res.status(500).json({ error: err.message });
+    }
   },
 
   getAccessRequests: async (req: Request, res: Response) => {

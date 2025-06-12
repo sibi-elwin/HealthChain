@@ -43,6 +43,8 @@ export default function UserMedicalRecords() {
   const [decryptedFileUrl, setDecryptedFileUrl] = useState<string | null>(null);
   const [decrypting, setDecrypting] = useState(false);
   const [viewerOpen, setViewerOpen] = useState(false);
+  const [password, setPassword] = useState('');
+  const [showPasswordDialog, setShowPasswordDialog] = useState(false);
 
   useEffect(() => {
     if (userAddress) {
@@ -71,19 +73,59 @@ export default function UserMedicalRecords() {
       setDecrypting(true);
       setError('');
       setViewerOpen(true);
+      setShowPasswordDialog(true);
+    } catch (err: any) {
+      console.error('Error preparing to view record:', err);
+      setError(err.message || 'Failed to prepare record for viewing');
+      setDecryptedTextContent(null);
+      setDecryptedFileUrl(null);
+    } finally {
+      setDecrypting(false);
+    }
+  };
 
-      const rawAesKey = record.aesKey;
-      console.log('Raw AES key for decryption:', rawAesKey);
-      if (!rawAesKey) {
-        throw new Error('Raw AES key not available for this record.');
+  const handlePasswordSubmit = async () => {
+    if (!password) {
+      setError('Please enter your password');
+      return;
+    }
+
+    try {
+      setDecrypting(true);
+      setError('');
+
+      if (!viewingRecord) {
+        throw new Error('No record selected for viewing');
+      }
+
+      // Get user's encSalt from backend
+      const userResponse = await fetch(`http://localhost:4000/api/user/${userAddress}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+
+      if (!userResponse.ok) {
+        throw new Error('Failed to fetch user data');
+      }
+
+      const { data: { user } } = await userResponse.json();
+      if (!user.encSalt) {
+        throw new Error('User encryption salt not found');
+      }
+
+      if (!viewingRecord.encryptedAesKeyForPatient) {
+        throw new Error('Encrypted AES key not available for this record.');
       }
 
       const decryptedData = await secureStorageService.decryptMedicalRecord(
-        record.ipfsHash,
-        rawAesKey
+        viewingRecord.ipfsHash,
+        viewingRecord.encryptedAesKeyForPatient,
+        password,
+        user.encSalt
       );
 
-      const fileType = record.fileType;
+      const fileType = viewingRecord.fileType;
       console.log('Detected file type:', fileType);
 
       if (fileType && fileType.startsWith('text/')) {
@@ -125,6 +167,7 @@ export default function UserMedicalRecords() {
         setError(`File type not supported for preview: ${fileType || 'Unknown'}`);
       }
 
+      setShowPasswordDialog(false);
     } catch (err: any) {
       console.error('Error viewing record:', err);
       setError(err.message || 'Failed to view record');
@@ -149,10 +192,10 @@ export default function UserMedicalRecords() {
     if (!selectedRecord || !doctorAddress) return;
 
     try {
-      if (!selectedRecord.aesKey) {
-        throw new Error('AES key not found for this record.');
+      if (!selectedRecord.encryptedAesKeyForPatient) {
+        throw new Error('Encrypted AES key not found for this record.');
       }
-      await secureStorageService.grantAccess(selectedRecord.id, userAddress, doctorAddress, selectedRecord.aesKey);
+      await secureStorageService.grantAccess(selectedRecord.id, userAddress, doctorAddress, selectedRecord.encryptedAesKeyForPatient);
       setSuccess('Access granted successfully');
       setGrantAccessDialog(false);
       setDoctorAddress('');
@@ -346,6 +389,28 @@ export default function UserMedicalRecords() {
             </Button>
           </Box>
         </DialogContent>
+      </Dialog>
+
+      <Dialog open={showPasswordDialog} onClose={() => setShowPasswordDialog(false)}>
+        <DialogTitle>Enter Password</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            margin="dense"
+            label="Password"
+            type="password"
+            fullWidth
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            helperText="Enter your password to decrypt the medical record"
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowPasswordDialog(false)}>Cancel</Button>
+          <Button onClick={handlePasswordSubmit} variant="contained" color="primary">
+            Decrypt
+          </Button>
+        </DialogActions>
       </Dialog>
     </Box>
   );

@@ -22,6 +22,8 @@ model User {
   walletAddress String    @unique
   publicKey     String?   // Add public key field
   phoneNumber   String?   // Add phone number field
+  authSalt      String?   // Salt for password hashing
+  encSalt       String?   // Salt for encryption
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -44,6 +46,8 @@ model Doctor {
   specialization String
   licenseNumber  String
   hospital       String?
+  pairPublicKey  String?  // Public key for asymmetric encryption
+  encryptedPrivateKey String? // Private key encrypted with doctor's password
   user           User     @relation("DoctorProfile", fields: [userId], references: [id])
 }
 

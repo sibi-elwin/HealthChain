@@ -16,8 +16,8 @@ export async function addMedicalRecordOnChain(
     signer
   );
   const tx = await contract.addRecord(patientAddress, ipfsHash, fileType, description);
-  const receipt = await tx.wait();
-  return receipt.transactionHash;
+  await tx.wait();
+  return tx.hash;
 }
 
 export async function grantAccessOnChain(signer: ethers.Signer, contractAddress: string, doctorAddress: string) {

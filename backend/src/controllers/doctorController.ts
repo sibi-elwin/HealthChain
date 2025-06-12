@@ -6,6 +6,8 @@ import { auditService } from "../services/auditService";
 import { authenticate, generateNonce } from "../services/authService";
 import { SessionService } from "../services/sessionService";
 import { WebhookService } from "../services/webhookService";
+import crypto from "crypto";
+import { hashPassword } from "../utils/passwordUtils";
 
 const prisma = new PrismaClient();
 
@@ -178,7 +180,13 @@ export const doctorController = {
     try {
       console.log('Doctor registration request received:', {
         ...req.body,
-        signature: req.body.signature ? 'present' : 'missing'
+        signature: req.body.signature ? 'present' : 'missing',
+        password: req.body.password ? 'present' : 'missing',
+        publicKey: req.body.publicKey ? 'present' : 'missing',
+        pairPublicKey: req.body.pairPublicKey ? 'present' : 'missing',
+        encryptedPrivateKey: req.body.encryptedPrivateKey ? 'present' : 'missing',
+        authSalt: req.body.authSalt ? 'present' : 'missing',
+        encSalt: req.body.encSalt ? 'present' : 'missing'
       });
 
       const { 
@@ -190,7 +198,12 @@ export const doctorController = {
         hospital,
         signature,
         publicKey,
-        phoneNumber
+        phoneNumber,
+        password,
+        pairPublicKey,
+        encryptedPrivateKey,
+        authSalt,
+        encSalt
       } = req.body;
 
       // Validate required fields
@@ -202,7 +215,12 @@ export const doctorController = {
         licenseNumber: 'License Number',
         signature: 'Signature',
         publicKey: 'Public Key',
-        phoneNumber: 'Phone Number'
+        phoneNumber: 'Phone Number',
+        password: 'Password',
+        pairPublicKey: 'Access Control Public Key',
+        encryptedPrivateKey: 'Encrypted Private Key',
+        authSalt: 'Auth Salt',
+        encSalt: 'Enc Salt'
       };
 
       const missingFields = Object.entries(requiredFields)
@@ -224,20 +242,28 @@ export const doctorController = {
         return;
       }
 
-      // Create user and doctor profile in database
+      // Hash the password using PBKDF2 with the provided auth salt
+      const hashedPassword = hashPassword(password, authSalt);
+
+      // Create user with hashed password and salts
       const user = await prisma.user.create({
         data: {
           name,
           email,
-          role: 'doctor',
           walletAddress,
+          role: 'doctor',
+          password: hashedPassword,
+          authSalt,
+          encSalt,
           publicKey,
           phoneNumber,
           doctorProfile: {
             create: {
               specialization,
               licenseNumber,
-              hospital
+              hospital,
+              pairPublicKey,
+              encryptedPrivateKey
             }
           }
         },
@@ -291,7 +317,13 @@ export const doctorController = {
       res.status(201).json({
         message: "Doctor registered successfully",
         data: {
-          user
+          user: {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            role: user.role,
+            doctorProfile: user.doctorProfile
+          }
         }
       });
     } catch (err: any) {

@@ -26,6 +26,7 @@ const Signup: React.FC = () => {
     email: '',        
     walletAddress: '',
     phoneNumber: '',
+    password: '',
     dob: '',
     gender: '',
     allergies: '',
@@ -103,13 +104,14 @@ const Signup: React.FC = () => {
       setError(null);
       
       if (!formData.name || !formData.email || !formData.dob || 
-          !formData.gender || !formData.walletAddress) {
+          !formData.gender || !formData.walletAddress || !formData.password) {
         const missingFields = [];
         if (!formData.name) missingFields.push('Name');
         if (!formData.email) missingFields.push('Email');
         if (!formData.dob) missingFields.push('Date of Birth');
         if (!formData.gender) missingFields.push('Gender');
         if (!formData.walletAddress) missingFields.push('Wallet Address');
+        if (!formData.password) missingFields.push('Password');
         
         throw new Error(`Please fill in all required fields: ${missingFields.join(', ')}`);
       }
@@ -207,6 +209,18 @@ const Signup: React.FC = () => {
               onChange={handleInputChange}
               margin="normal"
               required
+            />
+
+            <TextField
+              fullWidth
+              label="Password"
+              name="password"
+              type="password"
+              value={formData.password}
+              onChange={handleInputChange}
+              margin="normal"
+              required
+              helperText="This password will be used to encrypt your medical records"
             />
 
             <TextField

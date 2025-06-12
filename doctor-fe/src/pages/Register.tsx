@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   Container,
   Paper,
@@ -11,9 +11,10 @@ import {
   Link,
 } from '@mui/material';
 import { authService } from '../services/authService';
-import { ethers ,SigningKey} from 'ethers';
+import { ethers, SigningKey } from 'ethers';
 import { useNavigate } from 'react-router-dom';
-
+import { generateAccessKeyPair, encryptPrivateKey } from '../utils/keyUtils';
+import { generateSalts } from '../utils/cryptoUtils';
 
 export default function Register() {
   const navigate = useNavigate();
@@ -28,14 +29,8 @@ export default function Register() {
     specialization: '',
     licenseNumber: '',
     hospital: '',
+    password: '',
   });
-
-  // Redirect if already authenticated
-  useEffect(() => {
-    if (authService.isAuthenticated() && authService.getToken()) {
-      navigate('/dashboard', { replace: true });
-    }
-  }, [navigate]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({
@@ -90,27 +85,29 @@ export default function Register() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoading(true);
+    setError('');
+    
+
     try {
-      setLoading(true);
-      setError('');
-      
-      // Validate form data
-      if (!formData.name || !formData.email || !formData.specialization || 
-          !formData.licenseNumber || !formData.walletAddress || !formData.phoneNumber) {
-        const missingFields = [];
-        if (!formData.name) missingFields.push('Name');
-        if (!formData.email) missingFields.push('Email');
-        if (!formData.specialization) missingFields.push('Specialization');
-        if (!formData.licenseNumber) missingFields.push('License Number');
-        if (!formData.walletAddress) missingFields.push('Wallet Address');
-        if (!formData.phoneNumber) missingFields.push('Phone Number');
-        
-        throw new Error(`Please fill in all required fields: ${missingFields.join(', ')}`);
+      if (!formData.name || !formData.email || !formData.specialization || !formData.hospital || !formData.password) {
+        setError('Please fill in all required fields');
+        setLoading(false);
+        return;
       }
 
       if (!success) {
         throw new Error('Please connect your wallet first');
       }
+
+      // Generate salts for password hashing and private key encryption
+      const { authSalt, encSalt } = generateSalts();
+
+      // Generate access key pair for record access
+      const { pairPublicKey, privateKey } = await generateAccessKeyPair();
+
+      // Encrypt the private key with the password and enc salt
+      const encryptedPrivateKey = await encryptPrivateKey(privateKey, formData.password, encSalt);
 
       // Get wallet connection for signing
       console.log('Getting wallet connection for registration...');
@@ -139,13 +136,18 @@ export default function Register() {
         throw new Error('Registration signature verification failed');
       }
       console.log('Registration signature verified successfully');
+      
 
       // Prepare registration data with the new signature and public key
       const registrationData = {
         ...formData,
         signature: registrationSignature,
         publicKey,
-        nonce: registrationNonce
+        nonce: registrationNonce,
+        pairPublicKey,
+        encryptedPrivateKey,
+        authSalt,
+        encSalt
       };
 
       console.log('Registration data details:', {
@@ -157,14 +159,38 @@ export default function Register() {
         phoneNumber: registrationData.phoneNumber,
         signature: registrationSignature,
         publicKey: publicKey,
-        nonce: registrationNonce
+        nonce: registrationNonce,
+        pairPublicKey,
+        encryptedPrivateKey: 'present',
+        authSalt: 'present',
+        encSalt: 'present'
       });
 
       // Register doctor with backend
       const { doctor } = await authService.register(registrationData);
       
       console.log('Registration successful:', doctor);
-      navigate('/dashboard', { replace: true }); // Redirect after successful registration
+
+      // Get a fresh nonce for login
+      console.log('Getting fresh nonce for login...');
+      const loginNonce = await authService.requestNonce(formData.walletAddress, 'login');
+      console.log('Received login nonce:', loginNonce);
+
+      // Sign the login nonce
+      console.log('Signing login nonce...');
+      const loginSignature = await authService.signMessage(signer, loginNonce);
+      console.log('Generated login signature:', loginSignature);
+
+      // Get a new token for the registered user
+      console.log('Getting new token for registered user...');
+      const { token: newToken, verified: tokenVerified } = await authService.verifySignature(formData.walletAddress, loginSignature, 'login');
+      if (!tokenVerified || !newToken) {
+        throw new Error('Failed to get authentication token after registration');
+      }
+      console.log('New token received after registration');
+
+      // Navigate to dashboard after successful registration and token verification
+      navigate('/dashboard', { replace: true });
     } catch (err: any) {
       console.error('Registration error:', err);
       setError(err.response?.data?.error || err.message);
@@ -172,16 +198,6 @@ export default function Register() {
       setLoading(false);
     }
   };
-
-  // Show loading spinner if user is already authenticated
-  if (authService.isAuthenticated() && authService.getToken()) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-        <CircularProgress />
-        <Typography variant="h6" sx={{ ml: 2 }}>Loading...</Typography>
-      </Box>
-    );
-  }
 
   return (
     <Container component="main" maxWidth="xs">
@@ -206,26 +222,20 @@ export default function Register() {
           <Typography component="h1" variant="h5">
             Doctor Registration
           </Typography>
+
           {error && (
             <Alert severity="error" sx={{ mt: 2, width: '100%' }}>
               {error}
             </Alert>
           )}
-          {success && (
-            <Alert severity="success" sx={{ mt: 2, width: '100%' }}>
-              Wallet connected successfully!
-            </Alert>
-          )}
-          <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1, width: '100%' }}>
+
+          <Box component="form" onSubmit={handleSubmit} sx={{ mt: 3, width: '100%' }}>
             <TextField
               margin="normal"
               required
               fullWidth
-              id="name"
-              label="Full Name"
+              label="Name"
               name="name"
-              autoComplete="name"
-              autoFocus
               value={formData.name}
               onChange={handleChange}
             />
@@ -233,10 +243,8 @@ export default function Register() {
               margin="normal"
               required
               fullWidth
-              id="email"
-              label="Email Address"
+              label="Email"
               name="email"
-              autoComplete="email"
               type="email"
               value={formData.email}
               onChange={handleChange}
@@ -245,10 +253,8 @@ export default function Register() {
               margin="normal"
               required
               fullWidth
-              id="phoneNumber"
               label="Phone Number"
               name="phoneNumber"
-              type="tel"
               value={formData.phoneNumber}
               onChange={handleChange}
             />
@@ -256,7 +262,6 @@ export default function Register() {
               margin="normal"
               required
               fullWidth
-              id="specialization"
               label="Specialization"
               name="specialization"
               value={formData.specialization}
@@ -266,7 +271,6 @@ export default function Register() {
               margin="normal"
               required
               fullWidth
-              id="licenseNumber"
               label="License Number"
               name="licenseNumber"
               value={formData.licenseNumber}
@@ -275,7 +279,6 @@ export default function Register() {
             <TextField
               margin="normal"
               fullWidth
-              id="hospital"
               label="Hospital (Optional)"
               name="hospital"
               value={formData.hospital}
@@ -283,31 +286,44 @@ export default function Register() {
             />
             <TextField
               margin="normal"
+              required
               fullWidth
-              label="Wallet Address"
-              value={formData.walletAddress}
-              disabled
+              name="password"
+              label="Password"
+              type="password"
+              id="password"
+              autoComplete="new-password"
+              value={formData.password}
+              onChange={handleChange}
             />
+
             <Button
               fullWidth
               variant="contained"
               onClick={connectWallet}
-              disabled={loading || !!formData.walletAddress}
+              disabled={loading || success}
               sx={{ mt: 3, mb: 2 }}
             >
-              {formData.walletAddress ? 'Wallet Connected' : 'Connect Wallet'}
+              {loading ? <CircularProgress size={24} /> : success ? 'Wallet Connected' : 'Connect Wallet'}
             </Button>
+
             <Button
               type="submit"
               fullWidth
               variant="contained"
-              color="primary"
-              disabled={loading || !formData.walletAddress || !success}
+              disabled={loading || !success}
+              sx={{ mt: 2, mb: 2 }}
             >
-              {loading ? 'Registering...' : 'Register'}
+              {loading ? <CircularProgress size={24} /> : 'Register'}
             </Button>
+
             <Box sx={{ mt: 2, textAlign: 'center' }}>
-              <Link component="button" onClick={() => navigate('/login')}> Already have an account? Login</Link>
+              <Typography variant="body2">
+                Already have an account?{' '}
+                <Link component="button" onClick={() => navigate('/login')}>
+                  Login Here
+                </Link>
+              </Typography>
             </Box>
           </Box>
         </Paper>

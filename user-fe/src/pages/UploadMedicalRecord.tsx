@@ -26,6 +26,7 @@ export default function UploadMedicalRecord({ onLogout }: UploadMedicalRecordPro
     title: '',
     description: '',
     file: null as File | null,
+    password: '',
   });
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -48,7 +49,8 @@ export default function UploadMedicalRecord({ onLogout }: UploadMedicalRecordPro
       await secureStorageService.uploadMedicalRecord(
         uploadData.file,
         userAddress,
-        uploadData.description
+        uploadData.description,
+        uploadData.password
       );
 
       // Navigate back to medical records page after successful upload
@@ -122,6 +124,17 @@ export default function UploadMedicalRecord({ onLogout }: UploadMedicalRecordPro
             rows={4}
             disabled={uploading}
           />
+          <TextField
+            fullWidth
+            label="Password"
+            type="password"
+            value={uploadData.password}
+            onChange={(e) => setUploadData({ ...uploadData, password: e.target.value })}
+            margin="normal"
+            required
+            disabled={uploading}
+            helperText="This password will be used to encrypt your medical record. Please remember it as you'll need it to access the record later."
+          />
           <Button
             variant="outlined"
             component="label"
@@ -153,7 +166,7 @@ export default function UploadMedicalRecord({ onLogout }: UploadMedicalRecordPro
             <Button
               variant="contained"
               onClick={handleUpload}
-              disabled={!uploadData.file || !uploadData.title || uploading}
+              disabled={!uploadData.file || !uploadData.title || !uploadData.password || uploading}
               startIcon={uploading ? <CircularProgress size={20} /> : null}
             >
               {uploading ? 'Uploading...' : 'Upload'}

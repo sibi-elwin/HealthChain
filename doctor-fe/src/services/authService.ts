@@ -134,18 +134,31 @@ export const authService = {
     licenseNumber: string;
     hospital?: string;
     signature: string;
+    password: string;
+    publicKey: string;
+    pairPublicKey: string;
+    encryptedPrivateKey: string;
+    authSalt: string;
+    encSalt: string;
   }): Promise<{ doctor: any }> {
     try {
       console.log('Registering doctor with data:', {
         ...doctorData,
         signature: doctorData.signature ? `present (length: ${doctorData.signature.length})` : 'missing',
-        walletAddress: doctorData.walletAddress ? `present (length: ${doctorData.walletAddress.length})` : 'missing'
+        walletAddress: doctorData.walletAddress ? `present (length: ${doctorData.walletAddress.length})` : 'missing',
+        password: doctorData.password ? 'present' : 'missing',
+        publicKey: doctorData.publicKey ? 'present' : 'missing',
+        pairPublicKey: doctorData.pairPublicKey ? 'present' : 'missing',
+        encryptedPrivateKey: doctorData.encryptedPrivateKey ? 'present' : 'missing',
+        authSalt: doctorData.authSalt ? 'present' : 'missing',
+        encSalt: doctorData.encSalt ? 'present' : 'missing'
       });
 
       // Validate the data before sending
       const requiredFields = [
         'name', 'email', 'specialization', 'licenseNumber',
-        'walletAddress', 'signature'
+        'walletAddress', 'signature', 'password', 'publicKey', 
+        'pairPublicKey', 'encryptedPrivateKey', 'authSalt', 'encSalt'
       ];
 
       const missingFields = requiredFields.filter(field => !doctorData[field as keyof typeof doctorData]);

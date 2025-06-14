@@ -48,6 +48,11 @@ interface NotificationsResponse {
   notifications: Notification[];
 }
 
+interface NotificationPreferences {
+  enableWhatsAppNotifications: boolean;
+  enableEmailNotifications: boolean;
+}
+
 // Create axios instance with default config
 const api = axios.create({
   baseURL: API_URL,
@@ -371,6 +376,37 @@ export const authService = {
       return response.data.data;
     } catch (error) {
       console.error('Error fetching notifications:', error);
+      throw error;
+    }
+  },
+
+  async updateNotificationPreferences(preferences: NotificationPreferences): Promise<void> {
+    try {
+      const user = this.getUserFromToken();
+      if (!user?.walletAddress) {
+        throw new Error('User wallet address not found');
+      }
+      const token = this.getToken();
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const response = await axios.put(
+        `${API_URL}/patient/notification-preferences`,
+        preferences,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      if (!response.data.success) {
+        throw new Error(response.data.error || 'Failed to update notification preferences');
+      }
+    } catch (error) {
+      console.error('Error updating notification preferences:', error);
       throw error;
     }
   }

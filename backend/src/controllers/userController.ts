@@ -336,14 +336,12 @@ export const userController = {
     try {
       const { email, password } = req.body;
 
+      // First find the user
       const user = await prisma.user.findUnique({
         where: { email },
-        select: {
-          id: true,
-          email: true,
-          name: true,
-          role: true,
-          password: true
+        include: {
+          patientProfile: true,
+          doctorProfile: true
         }
       });
 
@@ -361,6 +359,18 @@ export const userController = {
 
       if (!isValidPassword) {
         res.status(401).json({ error: 'Invalid credentials' });
+        return;
+      }
+
+      // If user is a patient, verify they have a patient profile
+      if (user.role === 'patient' && !user.patientProfile) {
+        res.status(401).json({ error: 'Patient profile not found' });
+        return;
+      }
+
+      // If user is a doctor, verify they have a doctor profile
+      if (user.role === 'doctor' && !user.doctorProfile) {
+        res.status(401).json({ error: 'Doctor profile not found' });
         return;
       }
 
@@ -390,6 +400,8 @@ export const userController = {
           email: user.email,
           name: user.name,
           role: user.role,
+          patientProfile: user.patientProfile,
+          doctorProfile: user.doctorProfile
         },
       });
     } catch (error) {
@@ -695,7 +707,13 @@ export const userController = {
           publicKey: true,
           walletAddress: true,
           encSalt: true,
-          phoneNumber: true
+          phoneNumber: true,
+          patientProfile: {
+            select: {
+              enableWhatsAppNotifications: true,
+              enableEmailNotifications: true
+            }
+          }
         }
       });
 
@@ -1015,6 +1033,47 @@ export const userController = {
       });
     } catch (err: any) {
       console.error('Error retrieving dashboard statistics:', err);
+      res.status(500).json({ error: err.message });
+    }
+  },
+
+  updateNotificationPreferences: async (req: Request, res: Response): Promise<void> => {
+    try {
+      if (!req.user) {
+        res.status(401).json({ error: "Authentication required" });
+        return;
+      }
+
+      const { enableWhatsAppNotifications, enableEmailNotifications } = req.body;
+
+      // Update patient profile with new preferences
+      const updatedPatient = await prisma.patient.update({
+        where: {
+          userId: req.user.id
+        },
+        data: {
+          enableWhatsAppNotifications,
+          enableEmailNotifications
+        }
+      });
+
+      // Add audit log
+      await auditService.createAuditLog(
+        req.user.id,
+        'NOTIFICATION_PREFERENCES_UPDATED',
+        JSON.stringify({
+          enableWhatsAppNotifications,
+          enableEmailNotifications
+        }),
+        req
+      );
+
+      res.json({
+        message: "Notification preferences updated successfully",
+        data: { preferences: updatedPatient }
+      });
+    } catch (err: any) {
+      console.error('Error updating notification preferences:', err);
       res.status(500).json({ error: err.message });
     }
   }

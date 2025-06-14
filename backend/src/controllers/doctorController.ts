@@ -614,6 +614,8 @@ export const doctorController = {
           }
         }
       });
+
+      // Send WhatsApp notification if enabled
       await WebhookService.sendWhatsAppNotification({
         to: patient.phoneNumber || "",
         doctor: {
@@ -622,7 +624,8 @@ export const doctorController = {
           registrationNumber: doctor.doctorProfile.licenseNumber,
           hospital: doctor.doctorProfile.hospital || ""
         },
-        patientEmail: patient.email
+        patientEmail: patient.email,
+        patientId: patient.id // Add patient ID for preference check
       });
 
       // Add audit log

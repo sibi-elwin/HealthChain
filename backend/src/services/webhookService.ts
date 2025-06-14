@@ -1,6 +1,7 @@
 // backend/src/services/webhookService.ts
 
 import axios from 'axios';
+import { prisma } from '../lib/prisma';
 
 export class WebhookService {
   private static readonly N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL;
@@ -15,6 +16,7 @@ export class WebhookService {
       hospital: string;
     };
     patientEmail: string;
+    patientId: string;
   }) {
     if (!this.N8N_WEBHOOK_URL || !this.TWILIO_WHATSAPP_NUMBER) {
       console.error('Missing required environment variables for WhatsApp notification');
@@ -22,6 +24,15 @@ export class WebhookService {
     }
 
     try {
+      const patient = await prisma.patient.findUnique({
+        where: { userId: data.patientId }
+      });
+
+      if (!patient?.enableWhatsAppNotifications) {
+        console.log('WhatsApp notifications disabled for patient');
+        return;
+      }
+
       await axios.post(this.N8N_WEBHOOK_URL, {
         from: this.TWILIO_WHATSAPP_NUMBER,
         to: `whatsapp:${data.to}`,

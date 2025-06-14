@@ -26,6 +26,7 @@ model User {
   encSalt       String?   // Salt for encryption
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+ 
 
   doctorProfile    Doctor?         @relation("DoctorProfile")
   patientProfile   Patient?        @relation("PatientProfile")
@@ -58,6 +59,9 @@ model Patient {
   allergies        String?
   bloodGroup       String?
   emergencyContact String?
+  // Add notification preferences
+  enableWhatsAppNotifications Boolean @default(true)
+  enableEmailNotifications    Boolean @default(true)
   user             User     @relation("PatientProfile", fields: [userId], references: [id])
 }
 

@@ -19,4 +19,7 @@ router.get("/accessible-medical-records", doctorController.getAccessibleMedicalR
 router.post("/access-request", doctorController.createAccessRequest);
 router.get("/access-requests", doctorController.getAccessRequests);
 
+// Get doctor details
+router.get('/details/:walletAddress', doctorController.getDoctorDetails);
+
 export default router; 

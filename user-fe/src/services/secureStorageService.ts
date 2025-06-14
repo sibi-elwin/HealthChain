@@ -3,6 +3,7 @@ import { Buffer } from 'buffer';
 import { ethers } from 'ethers';
 import CryptoJS from 'crypto-js';
 import { addMedicalRecordOnChain, grantAccessOnChain } from './blockchainService';
+import { getDoctorDetails } from './doctorService';
 
 // Polyfill Buffer for browser
 window.Buffer = window.Buffer || Buffer;
@@ -461,14 +462,21 @@ export const secureStorageService = {
   // Helper function to decrypt AES key with KEK
   async decryptAESKeyWithKEK(encryptedAesKey: string, kek: CryptoKey): Promise<Uint8Array> {
     try {
+      console.log('Decrypting AES key with KEK...');
+      console.log('Encrypted AES key length:', encryptedAesKey.length);
+      
       // Decode the base64 encrypted AES key
       const encryptedData = Uint8Array.from(atob(encryptedAesKey), c => c.charCodeAt(0));
+      console.log('Decoded encrypted data length:', encryptedData.length);
       
       // Separate IV (first 12 bytes) and encrypted key
       const iv = encryptedData.slice(0, 12);
       const encryptedKey = encryptedData.slice(12);
+      console.log('IV length:', iv.length);
+      console.log('Encrypted key length:', encryptedKey.length);
 
       // Decrypt the AES key
+      console.log('Attempting to decrypt with AES-GCM...');
       const decryptedKey = await subtleCrypto.decrypt(
         {
           name: "AES-GCM",
@@ -477,11 +485,12 @@ export const secureStorageService = {
         kek,
         encryptedKey
       );
+      console.log('Decryption successful, decrypted key length:', decryptedKey.byteLength);
 
       return new Uint8Array(decryptedKey);
     } catch (error: any) {
       console.error('Error decrypting AES key:', error);
-      throw new Error('Failed to decrypt AES key');
+      throw new Error(`Failed to decrypt AES key: ${error.message}`);
     }
   },
 
@@ -491,7 +500,8 @@ export const secureStorageService = {
     recordId: string,
     patientWalletAddress: string, // Patient granting access
     doctorWalletAddress: string,
-    rawAesKey: string // The raw AES key (Hex string) for the record - passed from patient's record data
+    encryptedAesKey: string, // The encrypted AES key from patient's record
+    password: string // Add password parameter
   ): Promise<void> {
     try {
       if (!window.ethereum) throw new Error('MetaMask is not installed');
@@ -505,33 +515,57 @@ export const secureStorageService = {
           throw new Error('Connected wallet address does not match the patient granting access.');
       }
 
+      // Get doctor details including their public key
+      const doctor = await getDoctorDetails(doctorWalletAddress);
+
+      if (!doctor?.doctorProfile?.pairPublicKey) {
+        throw new Error('Doctor access control public key not found');
+      }
+
+      // Get patient's encSalt from backend
+      const patientResponse = await fetch(`http://localhost:4000/api/user/${patientWalletAddress}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+
+      if (!patientResponse.ok) {
+        throw new Error('Failed to fetch patient data');
+      }
+
+      const { data: { user: patient } } = await patientResponse.json();
+      if (!patient.encSalt) {
+        throw new Error('Patient encryption salt not found');
+      }
+
+      // Decrypt the AES key using the patient's password
+      const kek = await this.deriveKEK(password, patient.encSalt);
+      const decryptedAesKey = await this.decryptAESKeyWithKEK(encryptedAesKey, kek);
+
+      // Encrypt the AES key with the doctor's public key
+      const reencryptedAesKey = await this.encryptWithPublicKey(decryptedAesKey, doctor.doctorProfile.pairPublicKey);
+
       // Call the contract using the patient's wallet (via the signer) to grant access on-chain
       console.log(`Initiating on-chain access grant for record ${recordId} to doctor ${doctorWalletAddress} by patient ${connectedAddress}...`);
 
-      // You need to know the MedicalRecords contract address (from config or env)
       const contractAddress = import.meta.env.VITE_MEDICAL_RECORDS_CONTRACT_ADDRESS;
       if (!contractAddress) throw new Error('MedicalRecords contract address not set');
 
-      // Call grantAccessOnChain with signer, contractAddress, doctorAddress (3 arguments as per blockchainService)
       const transactionHash = await grantAccessOnChain(signer, contractAddress, doctorWalletAddress);
-
       console.log('On-chain grant transaction confirmed:', transactionHash);
 
       // Notify backend to record the grant in the database after on-chain confirmation
       console.log('Notifying backend to record access grant in database...');
-      // Assuming the backend endpoint is /api/user/:walletAddress/medical-records/:recordId/access-granted-db
-      // Use the patient's wallet address in the URL
       const dbRecordResponse = await fetch(`http://localhost:4000/api/user/${patientWalletAddress}/medical-records/${recordId}/access-granted-db`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`, // Assuming this endpoint is protected
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
         },
         body: JSON.stringify({
           doctorAddress: doctorWalletAddress,
-          transactionHash, // Pass transaction hash
-          // Pass the raw AES key to the backend to be stored in the AccessGrant (INSECURE - as it was before)
-          encryptedAesKeyForPatient: rawAesKey // The backend field name is misleading, it stored the raw key here
+          transactionHash,
+          encryptedAesKey: reencryptedAesKey // Send the re-encrypted AES key
         }),
       });
 
@@ -539,8 +573,6 @@ export const secureStorageService = {
         const errorData = await dbRecordResponse.json();
         console.error('Failed to record access grant in backend DB:', errorData);
         console.warn('Access granted on-chain, but failed to record in backend database.');
-        // Depending on requirements, you might want to revert the on-chain transaction
-        // or have a separate process to reconcile DB and blockchain state.
         throw new Error(`Failed to record access grant in database: ${errorData.error || dbRecordResponse.statusText}`);
       } else {
         console.log('Access grant successfully recorded in backend database.');
@@ -597,35 +629,47 @@ export const secureStorageService = {
 
   async encryptWithPublicKey(rawAesKey: Uint8Array, doctorPublicKey: string): Promise<string> {
     try {
-      // Convert the base64 doctor's public key to ArrayBuffer
-      const doctorPublicKeyBuffer = Uint8Array.from(atob(doctorPublicKey), c => c.charCodeAt(0));
+      console.log('Starting encryption with public key...');
       
-      // Import the doctor's public key
-      const doctorPublicKeyCryptoKey = await subtleCrypto.importKey(
-        "spki",
-        doctorPublicKeyBuffer,
+      // Convert the raw AES key to a format suitable for encryption
+      const aesKeyBuffer = new Uint8Array(rawAesKey);
+      console.log('AES key buffer length:', aesKeyBuffer.length);
+      
+      // Convert the public key from base64 to ArrayBuffer
+      const publicKeyBuffer = Uint8Array.from(atob(doctorPublicKey), c => c.charCodeAt(0));
+      console.log('Public key buffer length:', publicKeyBuffer.length);
+      
+      // Import the public key in SPKI format
+      const publicKey = await subtleCrypto.importKey(
+        'spki',
+        publicKeyBuffer,
         {
-          name: "RSA-OAEP",
-          hash: "SHA-256"
+          name: 'RSA-OAEP',
+          hash: 'SHA-256',
         },
         false,
-        ["encrypt"]
+        ['encrypt']
       );
+      console.log('Public key imported successfully');
       
-      // Encrypt the raw AES key with the doctor's public key
-      const encryptedData = await subtleCrypto.encrypt(
+      // Encrypt the AES key with the public key
+      const encryptedBuffer = await subtleCrypto.encrypt(
         {
-          name: "RSA-OAEP"
+          name: 'RSA-OAEP'
         },
-        doctorPublicKeyCryptoKey,
-        rawAesKey
+        publicKey,
+        aesKeyBuffer
       );
+      console.log('AES key encrypted successfully');
       
-      // Convert the encrypted data to base64 for storage
-      return btoa(String.fromCharCode(...new Uint8Array(encryptedData)));
-    } catch (error) {
-      console.error('Error encrypting with public key:', error);
-      throw new Error('Failed to encrypt with public key');
+      // Convert the encrypted buffer to base64
+      const encryptedBase64 = btoa(String.fromCharCode(...new Uint8Array(encryptedBuffer)));
+      console.log('Encryption completed successfully');
+      
+      return encryptedBase64;
+    } catch (error: any) {
+      console.error('Error in encryptWithPublicKey:', error);
+      throw new Error(`Failed to encrypt with public key: ${error.message}`);
     }
   },
 
@@ -636,17 +680,37 @@ export const secureStorageService = {
     encryptedAesKey: string
   ): Promise<string> {
     try {
+      // Validate inputs
+      if (!patientPassword || !patientEncSalt || !doctorPublicKey || !encryptedAesKey) {
+        throw new Error('Missing required parameters for reencryption');
+      }
+
       // 1. Derive KEK from patient's password and encSalt
       const patientKEK = await this.deriveKEK(patientPassword, patientEncSalt);
       
       // 2. Decrypt the AES key using patient's KEK
       const rawAesKey = await this.decryptAESKeyWithKEK(encryptedAesKey, patientKEK);
       
-      // 3. Encrypt the raw AES key with doctor's public key
-      return await this.encryptWithPublicKey(rawAesKey, doctorPublicKey);
+      // 3. Validate the decrypted AES key
+      if (!rawAesKey || rawAesKey.length === 0) {
+        throw new Error('Failed to decrypt AES key with patient credentials');
+      }
+
+      // 4. Encrypt the raw AES key with doctor's public key
+      const reencryptedKey = await this.encryptWithPublicKey(rawAesKey, doctorPublicKey);
+      
+      // 5. Validate the reencrypted key
+      if (!reencryptedKey) {
+        throw new Error('Failed to reencrypt AES key with doctor\'s public key');
+      }
+
+      return reencryptedKey;
     } catch (error) {
       console.error('Error reencrypting AES key:', error);
-      throw new Error('Failed to reencrypt AES key for doctor');
+      if (error instanceof Error) {
+        throw new Error(`Failed to reencrypt AES key: ${error.message}`);
+      }
+      throw new Error('Failed to reencrypt AES key');
     }
   }
 }; 

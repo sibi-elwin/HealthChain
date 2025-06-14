@@ -45,6 +45,7 @@ export default function UserMedicalRecords() {
   const [viewerOpen, setViewerOpen] = useState(false);
   const [password, setPassword] = useState('');
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
+  const [showGrantAccessPasswordDialog, setShowGrantAccessPasswordDialog] = useState(false);
 
   useEffect(() => {
     if (userAddress) {
@@ -195,10 +196,31 @@ export default function UserMedicalRecords() {
       if (!selectedRecord.encryptedAesKeyForPatient) {
         throw new Error('Encrypted AES key not found for this record.');
       }
-      await secureStorageService.grantAccess(selectedRecord.id, userAddress, doctorAddress, selectedRecord.encryptedAesKeyForPatient);
+      setShowGrantAccessPasswordDialog(true);
+    } catch (err: any) {
+      setError(err.message || 'Failed to grant access');
+    }
+  };
+
+  const handleGrantAccessPasswordSubmit = async () => {
+    if (!password || !selectedRecord || !doctorAddress) return;
+
+    try {
+      if (!selectedRecord.encryptedAesKeyForPatient) {
+        throw new Error('Encrypted AES key not found for this record.');
+      }
+      await secureStorageService.grantAccess(
+        selectedRecord.id,
+        userAddress,
+        doctorAddress,
+        selectedRecord.encryptedAesKeyForPatient,
+        password
+      );
       setSuccess('Access granted successfully');
       setGrantAccessDialog(false);
+      setShowGrantAccessPasswordDialog(false);
       setDoctorAddress('');
+      setPassword('');
       fetchRecords(); // Refresh records to update access list
     } catch (err: any) {
       setError(err.message || 'Failed to grant access');
@@ -409,6 +431,28 @@ export default function UserMedicalRecords() {
           <Button onClick={() => setShowPasswordDialog(false)}>Cancel</Button>
           <Button onClick={handlePasswordSubmit} variant="contained" color="primary">
             Decrypt
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={showGrantAccessPasswordDialog} onClose={() => setShowGrantAccessPasswordDialog(false)}>
+        <DialogTitle>Enter Password</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            margin="dense"
+            label="Password"
+            type="password"
+            fullWidth
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            helperText="Enter your password to grant access to the medical record"
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowGrantAccessPasswordDialog(false)}>Cancel</Button>
+          <Button onClick={handleGrantAccessPasswordSubmit} variant="contained" color="primary">
+            Grant Access
           </Button>
         </DialogActions>
       </Dialog>

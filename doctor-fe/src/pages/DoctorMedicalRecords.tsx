@@ -20,6 +20,7 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  TextField,
 } from '@mui/material';
 import { Visibility as ViewIcon } from '@mui/icons-material';
 import { authService } from '../services/authService';
@@ -27,10 +28,13 @@ import { secureStorageService } from '../services/secureStorageService';
 import { MedicalRecord } from '../types/medical-record';
 import Layout from '../components/Layout';
 import { useWallet } from '../hooks/useWallet';
+import { getDoctorDetails } from '../services/doctorService';
 
 interface DoctorMedicalRecordsProps {
   onLogout: () => void;
 }
+
+const API_URL = 'http://localhost:4000/api';
 
 export default function DoctorMedicalRecords({ onLogout }: DoctorMedicalRecordsProps) {
   const [loading, setLoading] = useState(true);
@@ -42,6 +46,8 @@ export default function DoctorMedicalRecords({ onLogout }: DoctorMedicalRecordsP
   const [decryptedTextContent, setDecryptedTextContent] = useState<string | null>(null);
   const [decryptedFileUrl, setDecryptedFileUrl] = useState<string | null>(null);
   const [decrypting, setDecrypting] = useState(false);
+  const [showPasswordDialog, setShowPasswordDialog] = useState(false);
+  const [password, setPassword] = useState('');
 
   const fetchAccessibleRecords = async () => {
     try {
@@ -104,56 +110,72 @@ export default function DoctorMedicalRecords({ onLogout }: DoctorMedicalRecordsP
       setDecryptedFileUrl(null);
       setDecrypting(true);
       setError('');
+      setShowPasswordDialog(true);
+    } catch (err: any) {
+      console.error('Error preparing to view record:', err);
+      setError(err.message || 'Failed to prepare record for viewing');
+      setDecryptedTextContent(null);
+      setDecryptedFileUrl(null);
+    } finally {
+      setDecrypting(false);
+    }
+  };
 
-      const rawAesKey = record.aesKey;
-      console.log('Raw AES key for decryption:', rawAesKey);
-      if (!rawAesKey) {
-        throw new Error('Raw AES key not available for this record.');
+  const handlePasswordSubmit = async () => {
+    if (!password) {
+      setError('Please enter your password');
+      return;
+    }
+
+    try {
+      setDecrypting(true);
+      setError('');
+
+      if (!viewingRecord) {
+        throw new Error('No record selected for viewing');
+      }
+
+      // Get doctor's encSalt using the service
+      const doctor = await getDoctorDetails(doctorAddress);
+      if (!doctor?.encSalt) {
+        throw new Error('Doctor encryption salt not found');
+      }
+
+      // For doctors, we need to use the encryptedAesKey from the AccessGrant
+      if (!viewingRecord.encryptedAesKey) {
+        throw new Error('Encrypted AES key not available for this record.');
       }
 
       const decryptedData = await secureStorageService.decryptMedicalRecord(
-        record.ipfsHash,
-        rawAesKey
+        viewingRecord.ipfsHash,
+        viewingRecord.encryptedAesKey,
+        password,
+        doctor.encSalt,
+        doctorAddress
       );
 
-      const fileType = record.fileType;
+      // Handle different file types
+      const fileType = viewingRecord.fileType;
       console.log('Detected file type:', fileType);
 
       if (fileType && fileType.startsWith('text/')) {
-        try {
-          const textDecoder = new TextDecoder();
-          const textContent = textDecoder.decode(decryptedData);
-          setDecryptedTextContent(textContent);
-          console.log('Decrypted as text.');
-        } catch (decodeError) {
-          console.error('Error decoding text:', decodeError);
-          setError('Failed to decode text content.');
-        }
+        const textDecoder = new TextDecoder();
+        const textContent = textDecoder.decode(decryptedData);
+        setDecryptedTextContent(textContent);
       } else if (fileType === 'application/pdf') {
-        try {
-          const blob = new Blob([decryptedData], { type: fileType });
-          const url = URL.createObjectURL(blob);
-          setDecryptedFileUrl(url);
-          console.log('Decrypted as PDF, created Blob URL:', url);
-        } catch (blobError) {
-          console.error('Error creating PDF blob:', blobError);
-          setError('Failed to prepare PDF for viewing.');
-        }
+        const blob = new Blob([decryptedData], { type: fileType });
+        const url = URL.createObjectURL(blob);
+        setDecryptedFileUrl(url);
       } else if (fileType && fileType.startsWith('image/')) {
-         try {
-          const blob = new Blob([decryptedData], { type: fileType });
-          const url = URL.createObjectURL(blob);
-          setDecryptedFileUrl(url);
-          console.log('Decrypted as image, created Blob URL:', url);
-         } catch (blobError) {
-          console.error('Error creating image blob:', blobError);
-          setError('Failed to prepare image for viewing.');
-         }
+        const blob = new Blob([decryptedData], { type: fileType });
+        const url = URL.createObjectURL(blob);
+        setDecryptedFileUrl(url);
       } else {
         console.log('File type not supported for preview:', fileType);
         setError(`File type not supported for preview: ${fileType || 'Unknown'}`);
       }
 
+      setShowPasswordDialog(false);
     } catch (err: any) {
       console.error('Error viewing record:', err);
       setError(err.message || 'Failed to view record');
@@ -165,14 +187,13 @@ export default function DoctorMedicalRecords({ onLogout }: DoctorMedicalRecordsP
   };
 
   const handleCloseViewer = () => {
-    if (decryptedFileUrl) {
-      URL.revokeObjectURL(decryptedFileUrl);
-      console.log('Revoked Blob URL:', decryptedFileUrl);
-    }
+    setShowPasswordDialog(false);
     setViewingRecord(null);
     setDecryptedTextContent(null);
-    setDecryptedFileUrl(null);
-    setError('');
+    if (decryptedFileUrl) {
+      URL.revokeObjectURL(decryptedFileUrl);
+      setDecryptedFileUrl(null);
+    }
   };
 
   if (walletLoading || loading) {
@@ -348,6 +369,28 @@ export default function DoctorMedicalRecords({ onLogout }: DoctorMedicalRecordsP
             </Button>
           </Box>
         </DialogContent>
+      </Dialog>
+
+      <Dialog open={showPasswordDialog} onClose={() => setShowPasswordDialog(false)}>
+        <DialogTitle>Enter Password</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            margin="dense"
+            label="Password"
+            type="password"
+            fullWidth
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            helperText="Enter your password to decrypt the medical record"
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowPasswordDialog(false)}>Cancel</Button>
+          <Button onClick={handlePasswordSubmit} variant="contained" color="primary">
+            Decrypt
+          </Button>
+        </DialogActions>
       </Dialog>
     </Layout>
   );

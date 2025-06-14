@@ -39,7 +39,8 @@ export async function encryptPrivateKey(privateKey: string, password: string, en
   try {
     // Convert password to key using PBKDF2
     const passwordBuffer = new TextEncoder().encode(password);
-    const saltBuffer = new TextEncoder().encode(encSalt);
+    // Convert base64 salt to Uint8Array
+    const saltBuffer = Uint8Array.from(atob(encSalt), c => c.charCodeAt(0));
     
     const key = await window.crypto.subtle.importKey(
       "raw",
@@ -62,8 +63,8 @@ export async function encryptPrivateKey(privateKey: string, password: string, en
       ["encrypt"]
     );
 
-    // Encrypt the private key
-    const privateKeyBuffer = new TextEncoder().encode(privateKey);
+    // Convert base64 private key to Uint8Array
+    const privateKeyBuffer = Uint8Array.from(atob(privateKey), c => c.charCodeAt(0));
     const iv = window.crypto.getRandomValues(new Uint8Array(12));
     
     const encryptedData = await window.crypto.subtle.encrypt(

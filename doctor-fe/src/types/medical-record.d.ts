@@ -18,6 +18,8 @@ export interface MedicalRecord {
   rawAesKey?: string;
   fileType?: string;
   aesKey?: string;
+  encryptedAesKey?: string;
+  encryptedAesKeyForPatient?: string;
   patient: {
     id: string;
     name: string;

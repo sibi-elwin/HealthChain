@@ -85,12 +85,12 @@ export default function Register() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-    setError('');
-    
+      setLoading(true);
+      setError('');
+      
 
     try {
-      if (!formData.name || !formData.email || !formData.specialization || !formData.hospital || !formData.password) {
+      if (!formData.name || !formData.email || !formData.specialization || !formData.licenseNumber || !formData.password) {
         setError('Please fill in all required fields');
         setLoading(false);
         return;

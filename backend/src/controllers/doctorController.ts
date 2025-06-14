@@ -531,7 +531,7 @@ export const doctorController = {
               grantedAt: grant.grantedAt,
               expiresAt: grant.expiresAt,
               blockchainTxHash: grant.record.blockchainTxHash,
-              aesKey: grant.encryptedAesKey // Map encryptedAesKey to aesKey for frontend compatibility
+              encryptedAesKey: grant.encryptedAesKey // Map encryptedAesKey to match frontend expectation
             });
           } else {
             console.log(`Blockchain access denied for record ${grant.record.id}. Skipping.`);
@@ -676,6 +676,74 @@ export const doctorController = {
       });
     } catch (err: any) {
       console.error('Error retrieving access requests:', err);
+      res.status(500).json({ error: err.message });
+    }
+  },
+
+  getDoctorDetails: async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { walletAddress } = req.params;
+
+      // Find doctor by wallet address with all related data
+      const doctor = await prisma.user.findUnique({
+        where: { walletAddress },
+        include: {
+          doctorProfile: true,
+          notifications: {
+            orderBy: {
+              createdAt: 'desc'
+            },
+            take: 10 // Limit to last 10 notifications
+          },
+          accessRequestsSent: {
+            orderBy: {
+              requestedAt: 'desc'
+            },
+            take: 10 // Limit to last 10 access requests
+          }
+        }
+      });
+
+      if (!doctor) {
+        res.status(404).json({ error: "Doctor not found" });
+        return;
+      }
+
+      if (!doctor.doctorProfile) {
+        res.status(404).json({ error: "Doctor profile not found" });
+        return;
+      }
+
+      // Add audit log for doctor details viewing
+      await auditService.createAuditLog(
+        doctor.id,
+        'DOCTOR_DETAILS_VIEWED',
+        'Doctor details retrieved',
+        req
+      );
+
+      res.json({
+        message: "Doctor details retrieved successfully",
+        data: {
+          user: {
+            id: doctor.id,
+            name: doctor.name,
+            email: doctor.email,
+            role: doctor.role,
+            walletAddress: doctor.walletAddress,
+            phoneNumber: doctor.phoneNumber,
+            authSalt: doctor.authSalt,
+            encSalt: doctor.encSalt,
+            createdAt: doctor.createdAt,
+            updatedAt: doctor.updatedAt,
+            doctorProfile: doctor.doctorProfile,
+            notifications: doctor.notifications,
+            accessRequestsSent: doctor.accessRequestsSent
+          }
+        }
+      });
+    } catch (err: any) {
+      console.error('Error retrieving doctor details:', err);
       res.status(500).json({ error: err.message });
     }
   }

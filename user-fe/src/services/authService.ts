@@ -402,11 +402,28 @@ export const authService = {
         }
       );
 
-      if (!response.data.success) {
-        throw new Error(response.data.error || 'Failed to update notification preferences');
+      if (!response.data.message) {
+        throw new Error('Invalid response from server');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating notification preferences:', error);
+      if (error.response?.data?.error) {
+        throw new Error(error.response.data.error);
+      }
+      throw new Error(error.message || 'Failed to update notification preferences');
+    }
+  },
+
+  async getNotificationPreferences(): Promise<NotificationPreferences> {
+    try {
+      const response = await axios.get(`${API_URL}/patient/notification-preferences`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+      return response.data.data;
+    } catch (error) {
+      console.error('Error fetching notification preferences:', error);
       throw error;
     }
   }

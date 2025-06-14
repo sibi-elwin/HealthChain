@@ -23,6 +23,7 @@ router.get("/:walletAddress/access-requests", userController.getAccessRequests);
 router.post("/:walletAddress/access-requests/:requestId/review", userController.reviewAccessRequest);
 router.get("/:walletAddress/notifications", userController.getNotifications);
 router.post("/:walletAddress/notifications/:notificationId/read", userController.markNotificationAsRead);
+router.get("/patient/notification-preferences", userController.getNotificationPreferences);
 router.put("/patient/notification-preferences", userController.updateNotificationPreferences);
 router.get("/validate-token", userController.validateToken);
 router.get("/dashboard-stats", userController.getDashboardStats);

@@ -1076,5 +1076,40 @@ export const userController = {
       console.error('Error updating notification preferences:', err);
       res.status(500).json({ error: err.message });
     }
+  },
+
+  getNotificationPreferences: async (req: Request, res: Response): Promise<void> => {
+    try {
+      if (!req.user) {
+        res.status(401).json({ error: "Authentication required" });
+        return;
+      }
+
+      const patient = await prisma.patient.findUnique({
+        where: {
+          userId: req.user.id
+        },
+        select: {
+          enableWhatsAppNotifications: true,
+          enableEmailNotifications: true
+        }
+      });
+
+      if (!patient) {
+        res.status(404).json({ error: "Patient profile not found" });
+        return;
+      }
+
+      res.json({
+        success: true,
+        data: {
+          enableWhatsAppNotifications: patient.enableWhatsAppNotifications,
+          enableEmailNotifications: patient.enableEmailNotifications
+        }
+      });
+    } catch (err: any) {
+      console.error('Error fetching notification preferences:', err);
+      res.status(500).json({ error: err.message });
+    }
   }
 }; 

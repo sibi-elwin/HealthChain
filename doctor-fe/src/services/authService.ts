@@ -45,6 +45,25 @@ interface AccessRequest {
   reviewedAt?: string;
 }
 
+interface Notification {
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  data?: any;
+  read: boolean;
+  createdAt: string;
+}
+
+interface NotificationsResponse {
+  notifications: Notification[];
+}
+
+interface NotificationPreferences {
+  enableWhatsAppNotifications: boolean;
+  enableEmailNotifications: boolean;
+}
+
 export const authService = {
   async requestNonce(address: string, purpose: 'wallet_connection' | 'registration' | 'login' = 'wallet_connection'): Promise<string> {
     try {
@@ -312,4 +331,91 @@ export const authService = {
       throw new Error(error.response?.data?.error || error.message || 'Failed to fetch access requests');
     }
   },
+
+  async getNotifications(): Promise<NotificationsResponse> {
+    try {
+      const user = this.getUserFromToken();
+      if (!user?.walletAddress) {
+        throw new Error('User wallet address not found');
+      }
+      const token = this.getToken();
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const response = await axios.get(`${API_URL}/${user.walletAddress}/notifications`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      return response.data.data;
+    } catch (error: any) {
+      console.error('Error fetching notifications:', error);
+      if (error.response?.data?.error) {
+        throw new Error(error.response.data.error);
+      }
+      throw new Error(error.message || 'Failed to fetch notifications');
+    }
+  },
+
+  async updateNotificationPreferences(preferences: NotificationPreferences): Promise<void> {
+    try {
+      const user = this.getUserFromToken();
+      if (!user?.walletAddress) {
+        throw new Error('User wallet address not found');
+      }
+      const token = this.getToken();
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const response = await axios.put(
+        `${API_URL}/${user.walletAddress}/notification-preferences`,
+        preferences,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      if (!response.data.message) {
+        throw new Error('Invalid response from server');
+      }
+    } catch (error: any) {
+      console.error('Error updating notification preferences:', error);
+      if (error.response?.data?.error) {
+        throw new Error(error.response.data.error);
+      }
+      throw new Error(error.message || 'Failed to update notification preferences');
+    }
+  },
+
+  async getNotificationPreferences(): Promise<NotificationPreferences> {
+    try {
+      const user = this.getUserFromToken();
+      if (!user?.walletAddress) {
+        throw new Error('User wallet address not found');
+      }
+      const token = this.getToken();
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const response = await axios.get(
+        `${API_URL}/${user.walletAddress}/notification-preferences`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      );
+      return response.data.data;
+    } catch (error) {
+      console.error('Error fetching notification preferences:', error);
+      throw error;
+    }
+  }
 }; 

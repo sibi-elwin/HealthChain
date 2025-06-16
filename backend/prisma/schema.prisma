@@ -49,6 +49,8 @@ model Doctor {
   hospital       String?
   pairPublicKey  String?  // Public key for asymmetric encryption
   encryptedPrivateKey String? // Private key encrypted with doctor's password
+  enableWhatsAppNotifications Boolean @default(true)
+  enableEmailNotifications    Boolean @default(true)
   user           User     @relation("DoctorProfile", fields: [userId], references: [id])
 }
 

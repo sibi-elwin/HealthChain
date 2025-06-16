@@ -618,14 +618,20 @@ export const doctorController = {
       // Send WhatsApp notification if enabled
       await WebhookService.sendWhatsAppNotification({
         to: patient.phoneNumber || "",
-        doctor: {
+        from: {
           name: doctor.name,
+          role: 'doctor',
           specialization: doctor.doctorProfile.specialization,
           registrationNumber: doctor.doctorProfile.licenseNumber,
           hospital: doctor.doctorProfile.hospital || ""
         },
-        patientEmail: patient.email,
-        patientId: patient.id // Add patient ID for preference check
+        type: 'ACCESS_REQUEST',
+        message: `Dr. ${doctor.name} has requested access to your medical records`,
+        metadata: {
+          doctorId: doctor.id,
+          patientId: patient.id,
+          reason
+        }
       });
 
       // Add audit log
@@ -747,6 +753,112 @@ export const doctorController = {
       });
     } catch (err: any) {
       console.error('Error retrieving doctor details:', err);
+      res.status(500).json({ error: err.message });
+    }
+  },
+
+  getNotifications: async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { walletAddress } = req.params;
+
+      const doctor = await prisma.user.findUnique({
+        where: { walletAddress }
+      });
+
+      if (!doctor) {
+        res.status(404).json({ error: "Doctor not found" });
+        return;
+      }
+
+      const notifications = await prisma.notification.findMany({
+        where: {
+          userId: doctor.id
+        },
+        orderBy: {
+          createdAt: 'desc'
+        }
+      });
+
+      res.json({
+        message: "Notifications retrieved successfully",
+        data: { notifications }
+      });
+    } catch (err: any) {
+      console.error('Error retrieving notifications:', err);
+      res.status(500).json({ error: err.message });
+    }
+  },
+
+  getNotificationPreferences: async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { walletAddress } = req.params;
+
+      const doctor = await prisma.user.findUnique({
+        where: { walletAddress },
+        include: { doctorProfile: true }
+      });
+
+      if (!doctor || !doctor.doctorProfile) {
+        res.status(404).json({ error: "Doctor not found" });
+        return;
+      }
+
+      res.json({
+        success: true,
+        data: {
+          enableWhatsAppNotifications: doctor.doctorProfile.enableWhatsAppNotifications,
+          enableEmailNotifications: doctor.doctorProfile.enableEmailNotifications
+        }
+      });
+    } catch (err: any) {
+      console.error('Error fetching notification preferences:', err);
+      res.status(500).json({ error: err.message });
+    }
+  },
+
+  updateNotificationPreferences: async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { walletAddress } = req.params;
+      const { enableWhatsAppNotifications, enableEmailNotifications } = req.body;
+
+      const doctor = await prisma.user.findUnique({
+        where: { walletAddress },
+        include: { doctorProfile: true }
+      });
+
+      if (!doctor || !doctor.doctorProfile) {
+        res.status(404).json({ error: "Doctor not found" });
+        return;
+      }
+
+      // Update doctor profile with new preferences
+      const updatedDoctor = await prisma.doctor.update({
+        where: {
+          userId: doctor.id
+        },
+        data: {
+          enableWhatsAppNotifications,
+          enableEmailNotifications
+        }
+      });
+
+      // Add audit log
+      await auditService.createAuditLog(
+        doctor.id,
+        'NOTIFICATION_PREFERENCES_UPDATED',
+        JSON.stringify({
+          enableWhatsAppNotifications,
+          enableEmailNotifications
+        }),
+        req
+      );
+
+      res.json({
+        message: "Notification preferences updated successfully",
+        data: { preferences: updatedDoctor }
+      });
+    } catch (err: any) {
+      console.error('Error updating notification preferences:', err);
       res.status(500).json({ error: err.message });
     }
   }

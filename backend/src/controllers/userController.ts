@@ -10,6 +10,7 @@ import { ethers } from 'ethers';
 import { createHash, randomBytes } from 'crypto';
 import { SessionService } from "../services/sessionService";
 import { verifySignature } from "../utils/verifySignature";
+import { WebhookService } from "../services/webhookService";
 
 const prisma = new PrismaClient();
 
@@ -864,6 +865,24 @@ export const userController = {
           }
         }
       });
+
+      // Send WhatsApp notification to doctor
+      if (accessRequest.doctor?.phoneNumber) {
+        await WebhookService.sendWhatsAppNotification({
+          to: accessRequest.doctor.phoneNumber,
+          from: {
+            name: req.user.name,
+            role: 'patient'
+          },
+          type: status === 'APPROVED' ? 'ACCESS_GRANTED' : 'ACCESS_REJECTED',
+          message: `Patient ${req.user.name} has ${status.toLowerCase()} your access request`,
+          metadata: {
+            doctorId: accessRequest.doctorId,
+            patientId: req.user.id,
+            requestId
+          }
+        });
+      }
 
       res.json({
         message: `Access request ${status.toLowerCase()} successfully`,

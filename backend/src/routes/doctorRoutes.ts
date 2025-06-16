@@ -18,6 +18,9 @@ router.put("/profile", doctorController.updateProfile);
 router.get("/accessible-medical-records", doctorController.getAccessibleMedicalRecords);
 router.post("/access-request", doctorController.createAccessRequest);
 router.get("/access-requests", doctorController.getAccessRequests);
+router.get("/:walletAddress/notifications", doctorController.getNotifications);
+router.get("/:walletAddress/notification-preferences", doctorController.getNotificationPreferences);
+router.put("/:walletAddress/notification-preferences", doctorController.updateNotificationPreferences);
 
 // Get doctor details
 router.get('/details/:walletAddress', doctorController.getDoctorDetails);

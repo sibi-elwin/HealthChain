@@ -10,5 +10,8 @@ export default defineConfig({
   },
   optimizeDeps: {
     include: ['ethers']
+  },
+  css: {
+    postcss: './postcss.config.cjs'
   }
 });

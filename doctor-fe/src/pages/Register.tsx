@@ -1,20 +1,10 @@
 import { useState } from 'react';
-import {
-  Container,
-  Paper,
-  Typography,
-  TextField,
-  Button,
-  Box,
-  Alert,
-  CircularProgress,
-  Link,
-} from '@mui/material';
 import { authService } from '../services/authService';
 import { ethers, SigningKey } from 'ethers';
 import { useNavigate } from 'react-router-dom';
 import { generateAccessKeyPair, encryptPrivateKey } from '../utils/keyUtils';
 import { generateSalts } from '../utils/cryptoUtils';
+import { Wallet, Shield, UserPlus } from 'lucide-react';
 
 export default function Register() {
   const navigate = useNavigate();
@@ -200,134 +190,161 @@ export default function Register() {
   };
 
   return (
-    <Container component="main" maxWidth="xs">
-      <Box
-        sx={{
-          marginTop: 8,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-        }}
-      >
-        <Paper
-          elevation={3}
-          sx={{
-            padding: 4,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            width: '100%',
-          }}
-        >
-          <Typography component="h1" variant="h5">
-            Doctor Registration
-          </Typography>
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full space-y-8">
+        <div className="text-center">
+          <div className="mx-auto h-12 w-12 bg-primary-600 rounded-full flex items-center justify-center">
+            <UserPlus className="h-8 w-8 text-white" />
+          </div>
+          <h2 className="mt-6 text-3xl font-bold text-gray-900">Doctor Registration</h2>
+          <p className="mt-2 text-sm text-gray-600">
+            Create your account to access medical records
+          </p>
+        </div>
 
+        <div className="card">
           {error && (
-            <Alert severity="error" sx={{ mt: 2, width: '100%' }}>
-              {error}
-            </Alert>
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-red-600 text-sm">{error}</p>
+            </div>
           )}
 
-          <Box component="form" onSubmit={handleSubmit} sx={{ mt: 3, width: '100%' }}>
-            <TextField
-              margin="normal"
-              required
-              fullWidth
-              label="Name"
-              name="name"
-              value={formData.name}
-              onChange={handleChange}
-            />
-            <TextField
-              margin="normal"
-              required
-              fullWidth
-              label="Email"
-              name="email"
-              type="email"
-              value={formData.email}
-              onChange={handleChange}
-            />
-            <TextField
-              margin="normal"
-              required
-              fullWidth
-              label="Phone Number"
-              name="phoneNumber"
-              value={formData.phoneNumber}
-              onChange={handleChange}
-            />
-            <TextField
-              margin="normal"
-              required
-              fullWidth
-              label="Specialization"
-              name="specialization"
-              value={formData.specialization}
-              onChange={handleChange}
-            />
-            <TextField
-              margin="normal"
-              required
-              fullWidth
-              label="License Number"
-              name="licenseNumber"
-              value={formData.licenseNumber}
-              onChange={handleChange}
-            />
-            <TextField
-              margin="normal"
-              fullWidth
-              label="Hospital (Optional)"
-              name="hospital"
-              value={formData.hospital}
-              onChange={handleChange}
-            />
-            <TextField
-              margin="normal"
-              required
-              fullWidth
-              name="password"
-              label="Password"
-              type="password"
-              id="password"
-              autoComplete="new-password"
-              value={formData.password}
-              onChange={handleChange}
-            />
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div>
+              <label htmlFor="name" className="form-label">Name *</label>
+              <input
+                type="text"
+                id="name"
+                name="name"
+                value={formData.name}
+                onChange={handleChange}
+                required
+                className="input-field"
+              />
+            </div>
 
-            <Button
-              fullWidth
-              variant="contained"
+            <div>
+              <label htmlFor="email" className="form-label">Email *</label>
+              <input
+                type="email"
+                id="email"
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
+                required
+                className="input-field"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="phoneNumber" className="form-label">Phone Number *</label>
+              <input
+                type="tel"
+                id="phoneNumber"
+                name="phoneNumber"
+                value={formData.phoneNumber}
+                onChange={handleChange}
+                required
+                className="input-field"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="specialization" className="form-label">Specialization *</label>
+              <input
+                type="text"
+                id="specialization"
+                name="specialization"
+                value={formData.specialization}
+                onChange={handleChange}
+                required
+                className="input-field"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="licenseNumber" className="form-label">License Number *</label>
+              <input
+                type="text"
+                id="licenseNumber"
+                name="licenseNumber"
+                value={formData.licenseNumber}
+                onChange={handleChange}
+                required
+                className="input-field"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="hospital" className="form-label">Hospital (Optional)</label>
+              <input
+                type="text"
+                id="hospital"
+                name="hospital"
+                value={formData.hospital}
+                onChange={handleChange}
+                className="input-field"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="password" className="form-label">Password *</label>
+              <input
+                type="password"
+                id="password"
+                name="password"
+                value={formData.password}
+                onChange={handleChange}
+                required
+                className="input-field"
+              />
+            </div>
+
+            <button
+              type="button"
               onClick={connectWallet}
               disabled={loading || success}
-              sx={{ mt: 3, mb: 2 }}
+              className="btn-primary w-full flex items-center justify-center space-x-2"
             >
-              {loading ? <CircularProgress size={24} /> : success ? 'Wallet Connected' : 'Connect Wallet'}
-            </Button>
+              {loading ? (
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+              ) : success ? (
+                <Shield className="h-5 w-5" />
+              ) : (
+                <Wallet className="h-5 w-5" />
+              )}
+              <span>
+                {loading ? 'Connecting...' : success ? 'Wallet Connected' : 'Connect Wallet'}
+              </span>
+            </button>
 
-            <Button
+            <button
               type="submit"
-              fullWidth
-              variant="contained"
               disabled={loading || !success}
-              sx={{ mt: 2, mb: 2 }}
+              className="btn-primary w-full flex items-center justify-center space-x-2"
             >
-              {loading ? <CircularProgress size={24} /> : 'Register'}
-            </Button>
+              {loading ? (
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+              ) : (
+                <UserPlus className="h-5 w-5" />
+              )}
+              <span>{loading ? 'Registering...' : 'Register'}</span>
+            </button>
+          </form>
 
-            <Box sx={{ mt: 2, textAlign: 'center' }}>
-              <Typography variant="body2">
-                Already have an account?{' '}
-                <Link component="button" onClick={() => navigate('/login')}>
-                  Login Here
-                </Link>
-              </Typography>
-            </Box>
-          </Box>
-        </Paper>
-      </Box>
-    </Container>
+          <div className="mt-6 text-center">
+            <p className="text-sm text-gray-600">
+              Already have an account?{' '}
+              <button
+                onClick={() => navigate('/login')}
+                className="font-medium text-primary-600 hover:text-primary-500 transition-colors"
+              >
+                Login Here
+              </button>
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 } 

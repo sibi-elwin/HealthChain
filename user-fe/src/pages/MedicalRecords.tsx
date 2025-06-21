@@ -1,17 +1,9 @@
 import { useState } from 'react';
-import {
-  Paper,
-  Typography,
-  Box,
-  Button,
-  Alert,
-  CircularProgress,
-} from '@mui/material';
-import { Add as AddIcon } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useWallet } from '../hooks/useWallet';
 import Layout from '../components/Layout';
 import UserMedicalRecords from '../components/UserMedicalRecords';
+import { Plus, FileText } from 'lucide-react';
 
 interface MedicalRecordsProps {
   onLogout: () => void;
@@ -25,10 +17,10 @@ export default function MedicalRecords({ onLogout }: MedicalRecordsProps) {
   if (loading) {
     return (
       <Layout onLogout={onLogout}>
-        <Box sx={{ mt: 4, textAlign: 'center' }}>
-          <CircularProgress />
-          <Typography sx={{ mt: 2 }}>Loading wallet connection...</Typography>
-        </Box>
+        <div className="flex flex-col items-center justify-center min-h-[400px]">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+          <p className="mt-4 text-gray-600">Loading wallet connection...</p>
+        </div>
       </Layout>
     );
   }
@@ -36,39 +28,45 @@ export default function MedicalRecords({ onLogout }: MedicalRecordsProps) {
   if (!userAddress) {
     return (
       <Layout onLogout={onLogout}>
-        <Box sx={{ mt: 4, textAlign: 'center' }}>
-          <Typography variant="h6" color="error">
-            Please connect your wallet to manage medical records
-          </Typography>
-        </Box>
+        <div className="flex flex-col items-center justify-center min-h-[400px]">
+          <div className="text-center">
+            <h2 className="text-xl font-semibold text-red-600 mb-2">
+              Wallet Connection Required
+            </h2>
+            <p className="text-gray-600">
+              Please connect your wallet to manage medical records
+            </p>
+          </div>
+        </div>
       </Layout>
     );
   }
 
   return (
     <Layout onLogout={onLogout}>
-      <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Typography variant="h4">
-          Medical Records
-        </Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => navigate('/medical-records/upload')}
+      <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="heading-2 text-gray-900 mb-2">Medical Records</h1>
+          <p className="text-gray-600">View and manage your medical records securely</p>
+        </div>
+        <button
+          onClick={() => navigate('/upload-medical-record')}
+          className="btn-primary flex items-center space-x-2"
         >
-          Upload Record
-        </Button>
-      </Box>
+          <Plus className="h-5 w-5" />
+          <span>Upload Record</span>
+        </button>
+      </div>
 
       {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
-        </Alert>
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+          <p className="text-red-600">{error}</p>
+        </div>
       )}
 
-      <Paper elevation={3} sx={{ p: 3 }}>
+      <div className="card">
         <UserMedicalRecords />
-      </Paper>
+      </div>
     </Layout>
   );
 } 

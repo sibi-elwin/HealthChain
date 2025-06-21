@@ -417,5 +417,34 @@ export const authService = {
       console.error('Error fetching notification preferences:', error);
       throw error;
     }
-  }
+  },
+
+  async getDoctorDashboardStats(doctorAddress: string): Promise<{
+    totalRecordsAccessible: number;
+    pendingAccessRequests: number;
+    unreadNotifications: number;
+  }> {
+    try {
+      const response = await api.get(`/dashboard/stats/${doctorAddress}`);
+      return response.data.data;
+    } catch (error: any) {
+      console.error('Error fetching doctor dashboard stats:', error);
+      throw new Error(error.response?.data?.error || error.message || 'Failed to fetch dashboard stats');
+    }
+  },
+
+  async requestAccessToMedicalRecords(patientAddress: string, doctorAddress: string): Promise<any> {
+    try {
+      const response = await api.post('/access-requests', {
+        patientWalletAddress: patientAddress,
+        doctorWalletAddress: doctorAddress,
+        // Add any other necessary fields for the access request if your backend requires them
+        reason: "Medical consultation request", // Placeholder reason
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('Error requesting access to medical records:', error);
+      throw new Error(error.response?.data?.error || error.message || 'Failed to request access');
+    }
+  },
 }; 

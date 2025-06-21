@@ -18,37 +18,39 @@ function App() {
   };
 
   return (
-    <Routes>
-      <Route 
-        path="/login" 
-        element={<Login />} 
-      />
-      <Route 
-        path="/signup" 
-        element={<Signup />} 
-      />
-      <Route 
-        path="/dashboard" 
-        element={<ProtectedRoute><Dashboard onLogout={handleLogout} /></ProtectedRoute>} 
-      />
-      <Route 
-        path="/medical-records" 
-        element={<ProtectedRoute><MedicalRecords onLogout={handleLogout} /></ProtectedRoute>} 
-      />
-      <Route 
-        path="/medical-records/upload" 
-        element={<ProtectedRoute><UploadMedicalRecord onLogout={handleLogout} /></ProtectedRoute>} 
-      />
-      <Route 
-        path="/notifications" 
-        element={<ProtectedRoute><Notifications onLogout={handleLogout} /></ProtectedRoute>} 
-      />
-      <Route 
-        path="/settings" 
-        element={<ProtectedRoute><Settings onLogout={handleLogout} /></ProtectedRoute>} 
-      />
-      <Route path="/" element={<Navigate to="/login" />} />
-    </Routes>
+    <div className="min-h-screen bg-gray-100">
+      <Routes>
+        <Route 
+          path="/login" 
+          element={<Login />} 
+        />
+        <Route 
+          path="/signup" 
+          element={<Signup />} 
+        />
+        <Route 
+          path="/dashboard" 
+          element={<ProtectedRoute><Dashboard onLogout={handleLogout} /></ProtectedRoute>} 
+        />
+        <Route 
+          path="/medical-records" 
+          element={<ProtectedRoute><MedicalRecords onLogout={handleLogout} /></ProtectedRoute>} 
+        />
+        <Route 
+          path="/upload-medical-record" 
+          element={<ProtectedRoute><UploadMedicalRecord onLogout={handleLogout} /></ProtectedRoute>} 
+        />
+        <Route 
+          path="/notifications" 
+          element={<ProtectedRoute><Notifications onLogout={handleLogout} /></ProtectedRoute>} 
+        />
+        <Route 
+          path="/settings" 
+          element={<ProtectedRoute><Settings onLogout={handleLogout} /></ProtectedRoute>} 
+        />
+        <Route path="/" element={<Navigate to="/login" />} />
+      </Routes>
+    </div>
   );
 }
 

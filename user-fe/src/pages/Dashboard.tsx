@@ -1,23 +1,14 @@
 import { useState, useEffect } from 'react';
-import {
-  Grid,
-  Paper,
-  Typography,
-  Box,
-  Button,
-  Card,
-  CardContent,
-  CardActions,
-  Alert,
-  CircularProgress,
-} from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { useWallet } from '../hooks/useWallet';
 import {
-  Add as AddIcon,
-  Visibility as ViewIcon,
-  Notifications as NotificationsIcon,
-} from '@mui/icons-material';
+  Plus as AddIcon,
+  Eye as ViewIcon,
+  Bell as NotificationsIcon,
+  FileText as RecordsIcon,
+  Clock as PendingIcon,
+  MessageSquare as NotificationIcon,
+} from 'lucide-react';
 import Layout from '../components/Layout';
 import { authService } from '../services/authService';
 
@@ -57,10 +48,10 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   if (loading) {
     return (
       <Layout onLogout={onLogout}>
-        <Box sx={{ mt: 4, textAlign: 'center' }}>
-          <CircularProgress />
-          <Typography sx={{ mt: 2 }}>Loading wallet connection...</Typography>
-        </Box>
+        <div className="flex flex-col items-center justify-center min-h-[400px]">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+          <p className="mt-4 text-gray-600">Loading wallet connection...</p>
+        </div>
       </Layout>
     );
   }
@@ -68,11 +59,16 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   if (!userAddress) {
     return (
       <Layout onLogout={onLogout}>
-        <Box sx={{ mt: 4, textAlign: 'center' }}>
-          <Typography variant="h6" color="error">
-            Please connect your wallet to manage medical records
-          </Typography>
-        </Box>
+        <div className="flex flex-col items-center justify-center min-h-[400px]">
+          <div className="text-center">
+            <h2 className="text-xl font-semibold text-red-600 mb-2">
+              Wallet Connection Required
+            </h2>
+            <p className="text-gray-600">
+              Please connect your wallet to manage medical records
+            </p>
+          </div>
+        </div>
       </Layout>
     );
   }
@@ -81,95 +77,87 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     {
       title: 'Upload Medical Record',
       description: 'Add a new medical record to your profile',
-      icon: <AddIcon sx={{ fontSize: 40 }} />,
-      action: () => navigate('/medical-records/upload'),
+      icon: <AddIcon className="w-10 h-10 text-primary-600" />,
+      action: () => navigate('/upload-medical-record'),
+      color: 'bg-blue-50 hover:bg-blue-100',
     },
     {
       title: 'View Records',
       description: 'Access and manage your medical records',
-      icon: <ViewIcon sx={{ fontSize: 40 }} />,
+      icon: <ViewIcon className="w-10 h-10 text-green-600" />,
       action: () => navigate('/medical-records'),
+      color: 'bg-green-50 hover:bg-green-100',
     },
     {
       title: 'Notifications',
       description: 'View your pending requests and notifications',
-      icon: <NotificationsIcon sx={{ fontSize: 40 }} />,
+      icon: <NotificationsIcon className="w-10 h-10 text-purple-600" />,
       action: () => navigate('/notifications'),
+      color: 'bg-purple-50 hover:bg-purple-100',
     },
   ];
 
   return (
     <Layout onLogout={onLogout}>
       {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
-        </Alert>
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+          <p className="text-red-600">{error}</p>
+        </div>
       )}
 
-      <Typography variant="h4" gutterBottom>
-        Welcome to HealthChain
-      </Typography>
+      <div className="mb-8">
+        <h1 className="heading-2 text-gray-900 mb-2">Welcome to HealthChain</h1>
+        <p className="text-gray-600">Manage your medical records securely on the blockchain</p>
+      </div>
 
       {/* Stats Cards */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} sm={4}>
-          <Paper elevation={3} sx={{ p: 2, textAlign: 'center' }}>
-            <Typography variant="h6" color="primary">
-              Total Records
-            </Typography>
-            <Typography variant="h3">{stats.totalRecords}</Typography>
-          </Paper>
-        </Grid>
-        <Grid item xs={12} sm={4}>
-          <Paper elevation={3} sx={{ p: 2, textAlign: 'center' }}>
-            <Typography variant="h6" color="primary">
-              Pending Requests
-            </Typography>
-            <Typography variant="h3">{stats.pendingRequests}</Typography>
-          </Paper>
-        </Grid>
-        <Grid item xs={12} sm={4}>
-          <Paper elevation={3} sx={{ p: 2, textAlign: 'center' }}>
-            <Typography variant="h6" color="primary">
-              Unread Notifications
-            </Typography>
-            <Typography variant="h3">{stats.unreadNotifications}</Typography>
-          </Paper>
-        </Grid>
-      </Grid>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="card text-center">
+          <div className="flex justify-center mb-4">
+            <RecordsIcon className="w-8 h-8 text-primary-600" />
+          </div>
+          <h3 className="text-lg font-semibold text-gray-700 mb-2">Total Records</h3>
+          <p className="text-3xl font-bold text-primary-600">{stats.totalRecords}</p>
+        </div>
+        
+        <div className="card text-center">
+          <div className="flex justify-center mb-4">
+            <PendingIcon className="w-8 h-8 text-orange-600" />
+          </div>
+          <h3 className="text-lg font-semibold text-gray-700 mb-2">Pending Requests</h3>
+          <p className="text-3xl font-bold text-orange-600">{stats.pendingRequests}</p>
+        </div>
+        
+        <div className="card text-center">
+          <div className="flex justify-center mb-4">
+            <NotificationIcon className="w-8 h-8 text-purple-600" />
+          </div>
+          <h3 className="text-lg font-semibold text-gray-700 mb-2">Unread Notifications</h3>
+          <p className="text-3xl font-bold text-purple-600">{stats.unreadNotifications}</p>
+        </div>
+      </div>
 
       {/* Quick Actions */}
-      <Typography variant="h5" gutterBottom>
-        Quick Actions
-      </Typography>
-      <Grid container spacing={3}>
+      <div className="mb-6">
+        <h2 className="heading-3 text-gray-900 mb-4">Quick Actions</h2>
+      </div>
+      
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {quickActions.map((action) => (
-          <Grid item xs={12} sm={4} key={action.title}>
-            <Card>
-              <CardContent>
-                <Box sx={{ textAlign: 'center', mb: 2 }}>
-                  {action.icon}
-                </Box>
-                <Typography variant="h6" gutterBottom>
-                  {action.title}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {action.description}
-                </Typography>
-              </CardContent>
-              <CardActions>
-                <Button
-                  fullWidth
-                  variant="contained"
-                  onClick={action.action}
-                >
-                  {action.title}
-                </Button>
-              </CardActions>
-            </Card>
-          </Grid>
+          <div key={action.title} className="card group cursor-pointer transition-all duration-200 hover:shadow-xl" onClick={action.action}>
+            <div className="text-center">
+              <div className={`inline-flex items-center justify-center w-16 h-16 rounded-full mb-4 transition-colors ${action.color}`}>
+                {action.icon}
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">{action.title}</h3>
+              <p className="text-gray-600 mb-4">{action.description}</p>
+              <button className="btn-primary w-full">
+                {action.title}
+              </button>
+            </div>
+          </div>
         ))}
-      </Grid>
+      </div>
     </Layout>
   );
 } 

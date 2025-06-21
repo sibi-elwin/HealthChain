@@ -1,19 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import {
-  Box,
-  Button,
-  Container,
-  TextField,
-  Typography,
-  Paper,
-  CircularProgress,
-  Alert,
-  Link
-} from '@mui/material';
 import { authService } from '../services/authService';
 import { useNavigate } from 'react-router-dom';
 import { useWallet } from '../hooks/useWallet';
 import { ethers } from 'ethers';
+import { Wallet, Shield, ArrowRight } from 'lucide-react';
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
@@ -119,71 +109,79 @@ const Login: React.FC = () => {
 
   if (walletLoading || isValidating) {
     return (
-      <Box 
-        sx={{ 
-          display: 'flex', 
-          justifyContent: 'center', 
-          alignItems: 'center', 
-          height: '100vh',
-          flexDirection: 'column',
-          gap: 2
-        }}
-      >
-        <CircularProgress size={40} />
-        <Typography variant="h6">
-          Loading...
-        </Typography>
-      </Box>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
+          <h2 className="text-xl font-semibold text-gray-700">Loading...</h2>
+        </div>
+      </div>
     );
   }
 
   return (
-    <Container maxWidth="sm">
-      <Paper elevation={3} sx={{ p: 4, mt: 4 }}>
-        <Typography variant="h4" component="h1" gutterBottom align="center">
-          Doctor Login
-        </Typography>
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full space-y-8">
+        <div className="text-center">
+          <div className="mx-auto h-12 w-12 bg-primary-600 rounded-full flex items-center justify-center">
+            <Shield className="h-8 w-8 text-white" />
+          </div>
+          <h2 className="mt-6 text-3xl font-bold text-gray-900">Doctor Login</h2>
+          <p className="mt-2 text-sm text-gray-600">
+            Connect your wallet to access medical records
+          </p>
+        </div>
 
-        {error && (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            {error}
-          </Alert>
-        )}
-
-        <Box sx={{ mt: 3 }}>
-          {!showSignButton ? (
-            <Button
-              variant="contained"
-              color="primary"
-              onClick={handleConnectWallet}
-              disabled={loading || walletLoading}
-              fullWidth
-            >
-              {loading ? <CircularProgress size={24} /> : 'Connect Wallet'}
-            </Button>
-          ) : (
-            <Button
-              variant="contained"
-              color="primary"
-              onClick={handleSignMessage}
-              disabled={loading}
-              fullWidth
-            >
-              {loading ? <CircularProgress size={24} /> : 'Sign Message to Login'}
-            </Button>
+        <div className="card">
+          {error && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-red-600 text-sm">{error}</p>
+            </div>
           )}
-        </Box>
 
-        <Box sx={{ mt: 2, textAlign: 'center' }}>
-          <Typography variant="body2">
-            Don't have an account?{' '}
-            <Link component="button" onClick={() => navigate('/register')}>
-              Register Here
-            </Link>
-          </Typography>
-        </Box>
-      </Paper>
-    </Container>
+          <div className="space-y-6">
+            {!showSignButton ? (
+              <button
+                onClick={handleConnectWallet}
+                disabled={loading || walletLoading}
+                className="btn-primary w-full flex items-center justify-center space-x-2"
+              >
+                {loading ? (
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                ) : (
+                  <Wallet className="h-5 w-5" />
+                )}
+                <span>{loading ? 'Connecting...' : 'Connect Wallet'}</span>
+              </button>
+            ) : (
+              <button
+                onClick={handleSignMessage}
+                disabled={loading}
+                className="btn-primary w-full flex items-center justify-center space-x-2"
+              >
+                {loading ? (
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                ) : (
+                  <Shield className="h-5 w-5" />
+                )}
+                <span>{loading ? 'Signing...' : 'Sign Message to Login'}</span>
+              </button>
+            )}
+          </div>
+
+          <div className="mt-6 text-center">
+            <p className="text-sm text-gray-600">
+              Don't have an account?{' '}
+              <button
+                onClick={() => navigate('/register')}
+                className="font-medium text-primary-600 hover:text-primary-500 transition-colors"
+              >
+                Register Here
+              </button>
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 };
 

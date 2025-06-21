@@ -1,6 +1,6 @@
-import { Box, Typography, Paper } from '@mui/material';
 import Layout from '../components/Layout';
 import { NotificationPreferences } from '../components/NotificationPreferences';
+import { Settings as SettingsIcon } from 'lucide-react';
 
 interface SettingsProps {
   onLogout: () => void;
@@ -9,15 +9,16 @@ interface SettingsProps {
 export default function Settings({ onLogout }: SettingsProps) {
   return (
     <Layout onLogout={onLogout}>
-      <Box sx={{ mt: 4, mb: 4 }}>
-        <Typography variant="h4" gutterBottom>
-          Settings
-        </Typography>
-      </Box>
-      
-      <Paper elevation={3} sx={{ p: 3, mb: 3 }}>
-        <NotificationPreferences />
-      </Paper>
+      <div className="space-y-6">
+        <div className="flex items-center space-x-3">
+          <SettingsIcon className="h-8 w-8 text-primary-600" />
+          <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
+        </div>
+        
+        <div className="card">
+          <NotificationPreferences />
+        </div>
+      </div>
     </Layout>
   );
 } 

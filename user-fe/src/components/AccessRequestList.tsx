@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Box, Typography, Button, CircularProgress } from '@mui/material';
 import { authService } from '../services/authService';
+import { User, Calendar, CheckCircle, XCircle, Clock, Stethoscope } from 'lucide-react';
 
 interface DoctorProfile {
   specialization: string;
@@ -61,62 +61,91 @@ export function AccessRequestList() {
 
   if (loading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
-        <CircularProgress />
-      </Box>
+      <div className="flex justify-center py-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+      </div>
     );
   }
 
   if (error) {
     return (
-      <Box sx={{ p: 2 }}>
-        <Typography color="error">{error}</Typography>
-      </Box>
+      <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+        <p className="text-red-600">{error}</p>
+      </div>
     );
   }
 
   if (!requests || requests.length === 0) {
     return (
-      <Box sx={{ p: 2 }}>
-        <Typography>No access requests</Typography>
-      </Box>
+      <div className="text-center py-12">
+        <User className="mx-auto h-12 w-12 text-gray-400" />
+        <h3 className="mt-2 text-sm font-medium text-gray-900">No access requests</h3>
+        <p className="mt-1 text-sm text-gray-500">
+          You don't have any pending access requests from doctors.
+        </p>
+      </div>
     );
   }
 
   return (
-    <Box>
+    <div className="space-y-4">
       {requests.map((request) => (
-        <Box key={request.id} sx={{ mb: 2, p: 2, border: '1px solid #ddd', borderRadius: 1 }}>
-          <Typography variant="h6">{request.doctor.name}</Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-            {request.doctor.doctorProfile.specialization}
-          </Typography>
-          <Typography variant="body1" sx={{ mb: 1 }}>
-            Purpose: {request.reason}
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Requested: {new Date(request.requestedAt).toLocaleDateString()}
-          </Typography>
+        <div key={request.id} className="p-4 border border-gray-200 rounded-lg hover:shadow-md transition-shadow">
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <div className="flex items-center space-x-2 mb-2">
+                <User className="h-5 w-5 text-primary-600" />
+                <h3 className="text-lg font-semibold text-gray-900">{request.doctor.name}</h3>
+                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                  request.status === 'PENDING' 
+                    ? 'bg-yellow-100 text-yellow-800' 
+                    : request.status === 'APPROVED'
+                    ? 'bg-green-100 text-green-800'
+                    : 'bg-red-100 text-red-800'
+                }`}>
+                  {request.status === 'PENDING' && <Clock className="h-3 w-3 mr-1" />}
+                  {request.status === 'APPROVED' && <CheckCircle className="h-3 w-3 mr-1" />}
+                  {request.status === 'REJECTED' && <XCircle className="h-3 w-3 mr-1" />}
+                  {request.status}
+                </span>
+              </div>
+              
+              <div className="flex items-center space-x-2 mb-2 text-sm text-gray-600">
+                <Stethoscope className="h-4 w-4" />
+                <span>{request.doctor.doctorProfile.specialization}</span>
+              </div>
+              
+              <p className="text-gray-700 mb-2">
+                <span className="font-medium">Purpose:</span> {request.reason}
+              </p>
+              
+              <div className="flex items-center space-x-2 text-sm text-gray-500">
+                <Calendar className="h-4 w-4" />
+                <span>Requested: {new Date(request.requestedAt).toLocaleDateString()}</span>
+              </div>
+            </div>
+          </div>
+          
           {request.status === 'PENDING' && (
-            <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
-              <Button 
-                variant="contained" 
-                color="primary"
+            <div className="mt-4 flex space-x-3">
+              <button
                 onClick={() => handleReview(request.id, 'APPROVED')}
+                className="btn-primary flex items-center space-x-2"
               >
-                Approve
-              </Button>
-              <Button 
-                variant="outlined" 
-                color="error"
+                <CheckCircle className="h-4 w-4" />
+                <span>Approve</span>
+              </button>
+              <button
                 onClick={() => handleReview(request.id, 'REJECTED')}
+                className="btn-secondary flex items-center space-x-2"
               >
-                Reject
-              </Button>
-            </Box>
+                <XCircle className="h-4 w-4" />
+                <span>Reject</span>
+              </button>
+            </div>
           )}
-        </Box>
+        </div>
       ))}
-    </Box>
+    </div>
   );
 }

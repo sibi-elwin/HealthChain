@@ -1,15 +1,6 @@
 import { useState, useEffect } from 'react';
-import {
-  Container,
-  Paper,
-  Typography,
-  TextField,
-  Button,
-  Box,
-  Alert,
-  CircularProgress,
-} from '@mui/material';
 import { authService } from '../services/authService';
+import { User, Save } from 'lucide-react';
 
 export default function Profile() {
   const [error, setError] = useState('');
@@ -64,79 +55,83 @@ export default function Profile() {
 
   if (!profile) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
-        <CircularProgress />
-      </Box>
+      <div className="flex justify-center mt-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+      </div>
     );
   }
 
   return (
-    <Container maxWidth="md">
-      <Paper elevation={3} sx={{ p: 4, mt: 4 }}>
-        <Typography variant="h4" gutterBottom>
-          Doctor Profile
-        </Typography>
+    <div className="max-w-4xl mx-auto p-6">
+      <div className="card">
+        <div className="flex items-center space-x-3 mb-6">
+          <User className="h-8 w-8 text-primary-600" />
+          <h1 className="text-3xl font-bold text-gray-900">Doctor Profile</h1>
+        </div>
 
         {error && (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            {error}
-          </Alert>
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-red-600 text-sm">{error}</p>
+          </div>
         )}
 
         {success && (
-          <Alert severity="success" sx={{ mb: 2 }}>
-            {success}
-          </Alert>
+          <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+            <p className="text-green-600 text-sm">{success}</p>
+          </div>
         )}
 
-        <Box sx={{ mb: 4 }}>
-          <Typography variant="h6" gutterBottom>
-            Personal Information
-          </Typography>
-          <Typography>
-            <strong>Name:</strong> {profile.name}
-          </Typography>
-          <Typography>
-            <strong>Email:</strong> {profile.email}
-          </Typography>
-          <Typography>
-            <strong>Wallet Address:</strong> {profile.walletAddress}
-          </Typography>
-        </Box>
+        <div className="mb-8">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">Personal Information</h2>
+          <div className="space-y-2 text-gray-700">
+            <p><strong>Name:</strong> {profile.name}</p>
+            <p><strong>Email:</strong> {profile.email}</p>
+            <p><strong>Wallet Address:</strong> {profile.walletAddress}</p>
+          </div>
+        </div>
 
-        <Box component="form" onSubmit={handleSubmit}>
-          <Typography variant="h6" gutterBottom>
-            Professional Information
-          </Typography>
-          <TextField
-            margin="normal"
-            required
-            fullWidth
-            id="specialization"
-            label="Specialization"
-            name="specialization"
-            value={formData.specialization}
-            onChange={handleChange}
-          />
-          <TextField
-            margin="normal"
-            fullWidth
-            id="hospital"
-            label="Hospital"
-            name="hospital"
-            value={formData.hospital}
-            onChange={handleChange}
-          />
-          <Button
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <h2 className="text-xl font-semibold text-gray-900">Professional Information</h2>
+          
+          <div>
+            <label htmlFor="specialization" className="form-label">Specialization *</label>
+            <input
+              type="text"
+              id="specialization"
+              name="specialization"
+              value={formData.specialization}
+              onChange={handleChange}
+              required
+              className="input-field"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="hospital" className="form-label">Hospital</label>
+            <input
+              type="text"
+              id="hospital"
+              name="hospital"
+              value={formData.hospital}
+              onChange={handleChange}
+              className="input-field"
+            />
+          </div>
+
+          <button
             type="submit"
-            variant="contained"
-            sx={{ mt: 3 }}
             disabled={loading}
+            className="btn-primary flex items-center space-x-2"
           >
-            {loading ? 'Updating...' : 'Update Profile'}
-          </Button>
-        </Box>
-      </Paper>
-    </Container>
+            {loading ? (
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+            ) : (
+              <Save className="h-5 w-5" />
+            )}
+            <span>{loading ? 'Updating...' : 'Update Profile'}</span>
+          </button>
+        </form>
+      </div>
+    </div>
   );
 } 

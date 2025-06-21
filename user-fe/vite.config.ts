@@ -28,5 +28,14 @@ export default defineConfig({
         global: 'globalThis',
       },
     },
+    include: ['ethers']
   },
+  css: {
+    postcss: './postcss.config.cjs'
+  },
+  server: {
+    hmr: {
+      overlay: true
+    }
+  }
 });

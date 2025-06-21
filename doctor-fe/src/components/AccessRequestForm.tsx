@@ -1,13 +1,4 @@
 import { useState } from 'react';
-import {
-  Box,
-  TextField,
-  Button,
-  Typography,
-  Paper,
-  Alert,
-  CircularProgress,
-} from '@mui/material';
 import { authService } from '../services/authService';
 
 interface AccessRequestFormProps {
@@ -38,50 +29,58 @@ export function AccessRequestForm({ patientAddress, onSuccess, onCancel }: Acces
   };
 
   return (
-    <Paper elevation={3} sx={{ p: 3, maxWidth: 600, mx: 'auto' }}>
-      <Typography variant="h6" gutterBottom>
-        Request Access to Patient Records
-      </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+    <div className="max-w-2xl mx-auto bg-white rounded-lg shadow-md p-6">
+      <h2 className="text-xl font-semibold mb-4">Request Access to Patient Records</h2>
+      <p className="text-gray-600 mb-6">
         Patient Address: {patientAddress}
-      </Typography>
+      </p>
 
       {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-600">
           {error}
-        </Alert>
+        </div>
       )}
 
-      <form onSubmit={handleSubmit}>
-        <TextField
-          fullWidth
-          multiline
-          rows={4}
-          label="Purpose of Access"
-          value={purpose}
-          onChange={(e) => setPurpose(e.target.value)}
-          required
-          sx={{ mb: 3 }}
-          placeholder="Please describe why you need access to these medical records..."
-        />
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <div>
+          <label htmlFor="purpose" className="block text-sm font-medium text-gray-700 mb-2">
+            Purpose of Access
+          </label>
+          <textarea
+            id="purpose"
+            value={purpose}
+            onChange={(e) => setPurpose(e.target.value)}
+            required
+            rows={4}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+            placeholder="Please describe why you need access to these records..."
+          />
+        </div>
 
-        <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
-          <Button
-            variant="outlined"
+        <div className="flex justify-end gap-4">
+          <button
+            type="button"
             onClick={onCancel}
-            disabled={loading}
+            className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
           >
             Cancel
-          </Button>
-          <Button
+          </button>
+          <button
             type="submit"
-            variant="contained"
             disabled={loading || !purpose.trim()}
+            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 flex items-center"
           >
-            {loading ? <CircularProgress size={24} /> : 'Submit Request'}
-          </Button>
-        </Box>
+            {loading ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                Submitting...
+              </>
+            ) : (
+              'Submit Request'
+            )}
+          </button>
+        </div>
       </form>
-    </Paper>
+    </div>
   );
 } 

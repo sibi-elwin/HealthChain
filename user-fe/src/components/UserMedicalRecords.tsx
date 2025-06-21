@@ -1,32 +1,19 @@
 import { useState, useEffect } from 'react';
-import {
-  Box,
-  Button,
-  Typography,
-  Paper,
-  Alert,
-  CircularProgress,
-  IconButton,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  TextField,
-} from '@mui/material';
-import {
-  PersonAdd as PersonAddIcon,
-  PersonRemove as PersonRemoveIcon,
-  Visibility as ViewIcon,
-} from '@mui/icons-material';
 import { secureStorageService, MedicalRecord } from '../services/secureStorageService';
 import { useWallet } from '../hooks/useWallet';
 import { useNavigate } from 'react-router-dom';
+import { 
+  Eye, 
+  UserPlus, 
+  UserMinus, 
+  FileText, 
+  Calendar, 
+  Download,
+  X,
+  Lock,
+  CheckCircle,
+  AlertCircle
+} from 'lucide-react';
 
 export default function UserMedicalRecords() {
   const navigate = useNavigate();
@@ -198,264 +185,389 @@ export default function UserMedicalRecords() {
       }
       setShowGrantAccessPasswordDialog(true);
     } catch (err: any) {
-      setError(err.message || 'Failed to grant access');
+      console.error('Error preparing to grant access:', err);
+      setError(err.message || 'Failed to prepare access grant');
     }
   };
 
   const handleGrantAccessPasswordSubmit = async () => {
-    if (!password || !selectedRecord || !doctorAddress) return;
+    if (!password) {
+      setError('Please enter your password');
+      return;
+    }
 
     try {
-      if (!selectedRecord.encryptedAesKeyForPatient) {
-        throw new Error('Encrypted AES key not found for this record.');
+      setLoading(true);
+      setError('');
+
+      if (!selectedRecord || !doctorAddress) {
+        throw new Error('Record or doctor address not selected');
       }
+
+      // Get user's encSalt from backend
+      const userResponse = await fetch(`http://localhost:4000/api/user/${userAddress}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+
+      if (!userResponse.ok) {
+        throw new Error('Failed to fetch user data');
+      }
+
+      const { data: { user } } = await userResponse.json();
+      if (!user.encSalt) {
+        throw new Error('User encryption salt not found');
+      }
+
       await secureStorageService.grantAccess(
         selectedRecord.id,
         userAddress,
         doctorAddress,
-        selectedRecord.encryptedAesKeyForPatient,
+        selectedRecord.encryptedAesKeyForPatient || '',
         password
       );
+
       setSuccess('Access granted successfully');
       setGrantAccessDialog(false);
       setShowGrantAccessPasswordDialog(false);
       setDoctorAddress('');
       setPassword('');
-      fetchRecords(); // Refresh records to update access list
+      fetchRecords(); // Refresh the records
     } catch (err: any) {
+      console.error('Error granting access:', err);
       setError(err.message || 'Failed to grant access');
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleRevokeAccess = async (record: MedicalRecord, doctorAddress: string) => {
     try {
+      setLoading(true);
+      setError('');
+
       await secureStorageService.revokeAccess(record.id, userAddress, doctorAddress);
       setSuccess('Access revoked successfully');
-      fetchRecords(); // Refresh records to update access list
+      fetchRecords(); // Refresh the records
     } catch (err: any) {
+      console.error('Error revoking access:', err);
       setError(err.message || 'Failed to revoke access');
+    } finally {
+      setLoading(false);
     }
   };
 
   if (loading) {
     return (
-      <Box sx={{ textAlign: 'center', py: 4 }}>
-        <Typography>Loading records...</Typography>
-      </Box>
-    );
-  }
-
-  if (records.length === 0) {
-    return (
-      <Box sx={{ textAlign: 'center', py: 4 }}>
-        <Typography variant="h6" color="text.secondary" gutterBottom>
-          No medical records found
-        </Typography>
-        <Typography variant="body1" color="text.secondary" paragraph>
-          Upload your first medical record to get started
-        </Typography>
-        <Button
-          variant="contained"
-          onClick={() => navigate('/medical-records/upload')}
-        >
-          Upload Record
-        </Button>
-      </Box>
+      <div className="flex flex-col items-center justify-center py-12">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+        <p className="mt-4 text-gray-600">Loading medical records...</p>
+      </div>
     );
   }
 
   return (
-    <Box sx={{ mt: 4 }}>
-      <Paper elevation={3} sx={{ p: 3 }}>
-        <Typography variant="h6" gutterBottom>
-          My Medical Records
-        </Typography>
+    <div className="space-y-6">
+      {error && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-center">
+          <AlertCircle className="h-5 w-5 text-red-600 mr-2" />
+          <p className="text-red-600">{error}</p>
+        </div>
+      )}
 
-        {error && (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            {error}
-          </Alert>
-        )}
+      {success && (
+        <div className="p-4 bg-green-50 border border-green-200 rounded-lg flex items-center">
+          <CheckCircle className="h-5 w-5 text-green-600 mr-2" />
+          <p className="text-green-600">{success}</p>
+        </div>
+      )}
 
-        {success && (
-          <Alert severity="success" sx={{ mb: 2 }}>
-            {success}
-          </Alert>
-        )}
-
-        {records.length > 0 && (
-          <>
-            <Typography variant="h6" gutterBottom>
-              Uploaded Records
-            </Typography>
-            <TableContainer>
-              <Table>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Title</TableCell>
-                    <TableCell>Description</TableCell>
-                    <TableCell>File Type</TableCell>
-                    <TableCell>Created At</TableCell>
-                    <TableCell>Actions</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {records.map((record) => (
-                    <TableRow key={record.id}>
-                      <TableCell>{record.title}</TableCell>
-                      <TableCell>{record.description}</TableCell>
-                      <TableCell>{record.fileType}</TableCell>
-                      <TableCell>{new Date(record.createdAt).toLocaleDateString()}</TableCell>
-                      <TableCell>
-                        <IconButton onClick={() => handleViewRecord(record)} color="primary">
-                          <ViewIcon />
-                        </IconButton>
-                        <IconButton
-                          size="small"
+      {records.length === 0 ? (
+        <div className="text-center py-12">
+          <FileText className="mx-auto h-12 w-12 text-gray-400" />
+          <h3 className="mt-2 text-sm font-medium text-gray-900">No medical records</h3>
+          <p className="mt-1 text-sm text-gray-500">
+            Get started by uploading your first medical record.
+          </p>
+          <div className="mt-6">
+            <button
+              onClick={() => navigate('/upload-medical-record')}
+              className="btn-primary"
+            >
+              Upload Record
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Record
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Type
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Date
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Access Grants
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {records.map((record) => (
+                  <tr key={record.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div>
+                        <div className="text-sm font-medium text-gray-900">
+                          {record.title}
+                        </div>
+                        {record.description && (
+                          <div className="text-sm text-gray-500">
+                            {record.description}
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                        {record.fileType || 'Unknown'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {new Date(record.createdAt).toLocaleDateString()}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {record.accessGrants?.length || 0} doctors
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <div className="flex items-center justify-end space-x-2">
+                        <button
+                          onClick={() => handleViewRecord(record)}
+                          className="text-primary-600 hover:text-primary-900 flex items-center"
+                        >
+                          <Eye className="h-4 w-4 mr-1" />
+                          View
+                        </button>
+                        <button
                           onClick={() => {
                             setSelectedRecord(record);
                             setGrantAccessDialog(true);
                           }}
-                          color="primary"
+                          className="text-green-600 hover:text-green-900 flex items-center"
                         >
-                          <PersonAddIcon />
-                        </IconButton>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </>
-        )}
-      </Paper>
+                          <UserPlus className="h-4 w-4 mr-1" />
+                          Grant Access
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
-      <Dialog open={grantAccessDialog} onClose={() => setGrantAccessDialog(false)}>
-        <DialogTitle>Grant Access to Record: {selectedRecord?.title}</DialogTitle>
-        <DialogContent>
-          <TextField
-            autoFocus
-            margin="dense"
-            label="Doctor Wallet Address"
-            type="text"
-            fullWidth
-            variant="standard"
-            value={doctorAddress}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDoctorAddress(e.target.value)}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setGrantAccessDialog(false)}>Cancel</Button>
-          <Button onClick={handleGrantAccess}>Grant Access</Button>
-        </DialogActions>
-      </Dialog>
+      {/* Grant Access Dialog */}
+      {grantAccessDialog && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Grant Access to Doctor</h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="form-label">Doctor's Wallet Address</label>
+                  <input
+                    type="text"
+                    value={doctorAddress}
+                    onChange={(e) => setDoctorAddress(e.target.value)}
+                    className="input-field"
+                    placeholder="Enter doctor's wallet address"
+                  />
+                </div>
+                <div className="flex space-x-3">
+                  <button
+                    onClick={() => {
+                      setGrantAccessDialog(false);
+                      setDoctorAddress('');
+                    }}
+                    className="btn-secondary flex-1"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleGrantAccess}
+                    disabled={!doctorAddress}
+                    className="btn-primary flex-1"
+                  >
+                    Grant Access
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
-      <Dialog
-        open={viewerOpen}
-        onClose={handleCloseViewer}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle>
-          {viewingRecord?.title}
-        </DialogTitle>
-        <DialogContent>
-          <Box sx={{ flexGrow: 1, overflowY: 'auto', mt: 2, mb: 2 }}>
-            {decrypting ? (
-              <Box sx={{ display: 'flex', justifyContent: 'center' }}>
-                <CircularProgress />
-              </Box>
-            ) : error ? (
-              <Typography color="error">{error}</Typography>
-            ) : decryptedTextContent !== null ? (
-              <Typography sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                {decryptedTextContent}
-              </Typography>
-            ) : decryptedFileUrl !== null && viewingRecord?.fileType === 'application/pdf' ? (
-              <Box sx={{ width: '100%', height: '500px' }}>
-                <iframe
-                  src={decryptedFileUrl}
-                  title="Medical Record Viewer"
-                  width="100%"
-                  height="100%"
-                  style={{ border: 'none' }}
-                />
-              </Box>
-            ) : decryptedFileUrl !== null && viewingRecord?.fileType?.startsWith('image/') ? (
-              <Box sx={{ maxWidth: '100%', maxHeight: '500px' }}>
-                <img
-                  src={decryptedFileUrl}
-                  alt="Medical Record Image"
-                  style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
-                />
-              </Box>
-            ) : (
-              <Typography>
-                Cannot preview this file type ({viewingRecord?.fileType || 'Unknown'}).
-              </Typography>
-            )}
-          </Box>
-          <Box sx={{ mt: 2, textAlign: 'right' }}>
-            {decryptedFileUrl && (
-              <Button
-                variant="contained"
-                color="primary"
-                onClick={() => window.open(decryptedFileUrl!, '_blank')}
-                sx={{ mr: 1 }}
+      {/* Password Dialog for Grant Access */}
+      {showGrantAccessPasswordDialog && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
+                <Lock className="h-5 w-5 mr-2 text-primary-600" />
+                Enter Password
+              </h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="form-label">Your Password</label>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="input-field"
+                    placeholder="Enter your password"
+                  />
+                </div>
+                <div className="flex space-x-3">
+                  <button
+                    onClick={() => {
+                      setShowGrantAccessPasswordDialog(false);
+                      setPassword('');
+                    }}
+                    className="btn-secondary flex-1"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleGrantAccessPasswordSubmit}
+                    disabled={!password || loading}
+                    className="btn-primary flex-1 flex items-center justify-center"
+                  >
+                    {loading ? (
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    ) : (
+                      'Grant Access'
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Password Dialog for Viewing */}
+      {showPasswordDialog && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
+                <Lock className="h-5 w-5 mr-2 text-primary-600" />
+                Enter Password
+              </h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="form-label">Your Password</label>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="input-field"
+                    placeholder="Enter your password"
+                  />
+                </div>
+                <div className="flex space-x-3">
+                  <button
+                    onClick={() => {
+                      setShowPasswordDialog(false);
+                      setPassword('');
+                      handleCloseViewer();
+                    }}
+                    className="btn-secondary flex-1"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handlePasswordSubmit}
+                    disabled={!password || decrypting}
+                    className="btn-primary flex-1 flex items-center justify-center"
+                  >
+                    {decrypting ? (
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    ) : (
+                      'View Record'
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Record Viewer */}
+      {viewerOpen && (decryptedTextContent || decryptedFileUrl) && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-10 mx-auto p-5 border w-11/12 max-w-4xl shadow-lg rounded-md bg-white">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-medium text-gray-900">
+                {viewingRecord?.title}
+              </h3>
+              <button
+                onClick={handleCloseViewer}
+                className="text-gray-400 hover:text-gray-600"
               >
-                Open in New Tab
-              </Button>
-            )}
-            <Button variant="outlined" onClick={handleCloseViewer}>
-              Close
-            </Button>
-          </Box>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={showPasswordDialog} onClose={() => setShowPasswordDialog(false)}>
-        <DialogTitle>Enter Password</DialogTitle>
-        <DialogContent>
-          <TextField
-            autoFocus
-            margin="dense"
-            label="Password"
-            type="password"
-            fullWidth
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            helperText="Enter your password to decrypt the medical record"
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setShowPasswordDialog(false)}>Cancel</Button>
-          <Button onClick={handlePasswordSubmit} variant="contained" color="primary">
-            Decrypt
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      <Dialog open={showGrantAccessPasswordDialog} onClose={() => setShowGrantAccessPasswordDialog(false)}>
-        <DialogTitle>Enter Password</DialogTitle>
-        <DialogContent>
-          <TextField
-            autoFocus
-            margin="dense"
-            label="Password"
-            type="password"
-            fullWidth
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            helperText="Enter your password to grant access to the medical record"
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setShowGrantAccessPasswordDialog(false)}>Cancel</Button>
-          <Button onClick={handleGrantAccessPasswordSubmit} variant="contained" color="primary">
-            Grant Access
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </Box>
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+            
+            <div className="max-h-96 overflow-auto">
+              {decryptedTextContent && (
+                <pre className="whitespace-pre-wrap text-sm text-gray-700 bg-gray-50 p-4 rounded-lg">
+                  {decryptedTextContent}
+                </pre>
+              )}
+              
+              {decryptedFileUrl && (
+                <div className="text-center">
+                  {viewingRecord?.fileType?.startsWith('image/') ? (
+                    <img
+                      src={decryptedFileUrl}
+                      alt={viewingRecord.title}
+                      className="max-w-full max-h-80 object-contain"
+                    />
+                  ) : (
+                    <iframe
+                      src={decryptedFileUrl}
+                      className="w-full h-96"
+                      title={viewingRecord?.title}
+                    />
+                  )}
+                </div>
+              )}
+            </div>
+            
+            <div className="mt-4 flex justify-end">
+              <button
+                onClick={handleCloseViewer}
+                className="btn-secondary"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 } 

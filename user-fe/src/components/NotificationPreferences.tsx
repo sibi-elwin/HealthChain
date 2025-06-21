@@ -1,15 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import {
-  Box,
-  Card,
-  CardContent,
-  Typography,
-  Switch,
-  FormControlLabel,
-  Alert,
-  CircularProgress,
-} from '@mui/material';
 import { authService } from '../services/authService';
+import { Bell, Mail, MessageCircle, CheckCircle, AlertCircle } from 'lucide-react';
 
 interface NotificationPreferences {
   enableWhatsAppNotifications: boolean;
@@ -68,66 +59,87 @@ export function NotificationPreferences() {
 
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
-        <CircularProgress />
-      </Box>
+      <div className="flex justify-center items-center min-h-[200px]">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+      </div>
     );
   }
 
   return (
-    <Card>
-      <CardContent>
-        <Typography variant="h6" gutterBottom>
-          Notification Preferences
-        </Typography>
+    <div className="space-y-6">
+      <div className="flex items-center space-x-2">
+        <Bell className="h-6 w-6 text-primary-600" />
+        <h2 className="text-xl font-semibold text-gray-900">Notification Preferences</h2>
+      </div>
 
-        {error && (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            {error}
-          </Alert>
-        )}
+      {error && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-center">
+          <AlertCircle className="h-5 w-5 text-red-600 mr-2" />
+          <p className="text-red-600">{error}</p>
+        </div>
+      )}
 
-        {success && (
-          <Alert severity="success" sx={{ mb: 2 }}>
-            {success}
-          </Alert>
-        )}
+      {success && (
+        <div className="p-4 bg-green-50 border border-green-200 rounded-lg flex items-center">
+          <CheckCircle className="h-5 w-5 text-green-600 mr-2" />
+          <p className="text-green-600">{success}</p>
+        </div>
+      )}
 
-        <Box sx={{ mb: 2 }}>
-          <FormControlLabel
-            control={
-              <Switch
-                checked={preferences.enableWhatsAppNotifications}
-                onChange={() => handleToggle('enableWhatsAppNotifications')}
-                disabled={saving}
-              />
-            }
-            label="WhatsApp Notifications"
-          />
-        </Box>
+      <div className="space-y-4">
+        <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+          <div className="flex items-center space-x-3">
+            <MessageCircle className="h-5 w-5 text-green-600" />
+            <div>
+              <h3 className="text-sm font-medium text-gray-900">WhatsApp Notifications</h3>
+              <p className="text-sm text-gray-500">Receive notifications via WhatsApp</p>
+            </div>
+          </div>
+          <button
+            onClick={() => handleToggle('enableWhatsAppNotifications')}
+            disabled={saving}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 ${
+              preferences.enableWhatsAppNotifications ? 'bg-primary-600' : 'bg-gray-200'
+            }`}
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                preferences.enableWhatsAppNotifications ? 'translate-x-6' : 'translate-x-1'
+              }`}
+            />
+          </button>
+        </div>
 
-        <Box>
-          <FormControlLabel
-            control={
-              <Switch
-                checked={preferences.enableEmailNotifications}
-                onChange={() => handleToggle('enableEmailNotifications')}
-                disabled={saving}
-              />
-            }
-            label="Email Notifications"
-          />
-        </Box>
+        <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+          <div className="flex items-center space-x-3">
+            <Mail className="h-5 w-5 text-blue-600" />
+            <div>
+              <h3 className="text-sm font-medium text-gray-900">Email Notifications</h3>
+              <p className="text-sm text-gray-500">Receive notifications via email</p>
+            </div>
+          </div>
+          <button
+            onClick={() => handleToggle('enableEmailNotifications')}
+            disabled={saving}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 ${
+              preferences.enableEmailNotifications ? 'bg-primary-600' : 'bg-gray-200'
+            }`}
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                preferences.enableEmailNotifications ? 'translate-x-6' : 'translate-x-1'
+              }`}
+            />
+          </button>
+        </div>
+      </div>
 
-        {saving && (
-          <Box display="flex" alignItems="center" mt={2}>
-            <CircularProgress size={20} sx={{ mr: 1 }} />
-            <Typography variant="body2" color="text.secondary">
-              Saving preferences...
-            </Typography>
-          </Box>
-        )}
-      </CardContent>
-    </Card>
+      {saving && (
+        <div className="flex items-center space-x-2 text-sm text-gray-600">
+          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-600"></div>
+          <span>Saving preferences...</span>
+        </div>
+      )}
+    </div>
   );
 } 

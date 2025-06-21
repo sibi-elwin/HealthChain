@@ -1,52 +1,18 @@
 import { useState, useEffect } from 'react';
-import {
-  Box,
-  Typography,
-  Paper,
-  Tabs,
-  Tab,
-  CircularProgress,
-  Alert,
-} from '@mui/material';
 import { useWallet } from '../hooks/useWallet';
 import Layout from '../components/Layout';
 import { AccessRequestList } from '../components/AccessRequestList';
 import { authService } from '../services/authService';
+import { Bell, Clock, CheckCircle, XCircle } from 'lucide-react';
 
 interface NotificationsProps {
   onLogout: () => void;
 }
 
-interface TabPanelProps {
-  children?: React.ReactNode;
-  index: number;
-  value: number;
-}
-
-function TabPanel(props: TabPanelProps) {
-  const { children, value, index, ...other } = props;
-
-  return (
-    <div
-      role="tabpanel"
-      hidden={value !== index}
-      id={`notifications-tabpanel-${index}`}
-      aria-labelledby={`notifications-tab-${index}`}
-      {...other}
-    >
-      {value === index && (
-        <Box sx={{ p: 3 }}>
-          {children}
-        </Box>
-      )}
-    </div>
-  );
-}
-
 export default function Notifications({ onLogout }: NotificationsProps) {
   const { address: userAddress, loading } = useWallet();
   const [error, setError] = useState('');
-  const [tabValue, setTabValue] = useState(0);
+  const [activeTab, setActiveTab] = useState('requests');
   const [notifications, setNotifications] = useState<any[]>([]);
   const [loadingNotifications, setLoadingNotifications] = useState(true);
 
@@ -78,17 +44,13 @@ export default function Notifications({ onLogout }: NotificationsProps) {
     }
   }, [userAddress]);
 
-  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
-    setTabValue(newValue);
-  };
-
   if (loading) {
     return (
       <Layout onLogout={onLogout}>
-        <Box sx={{ mt: 4, textAlign: 'center' }}>
-          <CircularProgress />
-          <Typography sx={{ mt: 2 }}>Loading wallet connection...</Typography>
-        </Box>
+        <div className="flex flex-col items-center justify-center min-h-[400px]">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+          <p className="mt-4 text-gray-600">Loading wallet connection...</p>
+        </div>
       </Layout>
     );
   }
@@ -96,72 +58,123 @@ export default function Notifications({ onLogout }: NotificationsProps) {
   if (!userAddress) {
     return (
       <Layout onLogout={onLogout}>
-        <Box sx={{ mt: 4, textAlign: 'center' }}>
-          <Typography variant="h6" color="error">
-            Please connect your wallet to view notifications
-          </Typography>
-        </Box>
+        <div className="flex flex-col items-center justify-center min-h-[400px]">
+          <div className="text-center">
+            <h2 className="text-xl font-semibold text-red-600 mb-2">
+              Wallet Connection Required
+            </h2>
+            <p className="text-gray-600">
+              Please connect your wallet to view notifications
+            </p>
+          </div>
+        </div>
       </Layout>
     );
   }
 
   return (
     <Layout onLogout={onLogout}>
-      <Typography variant="h4" gutterBottom>
-        Notifications
-      </Typography>
+      <div className="mb-8">
+        <h1 className="heading-2 text-gray-900 mb-2">Notifications</h1>
+        <p className="text-gray-600">Manage your access requests and notifications</p>
+      </div>
 
       {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
-        </Alert>
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+          <p className="text-red-600">{error}</p>
+        </div>
       )}
 
-      <Paper elevation={3}>
-        <Tabs
-          value={tabValue}
-          onChange={handleTabChange}
-          aria-label="notifications tabs"
-          sx={{ borderBottom: 1, borderColor: 'divider' }}
-        >
-          <Tab label="Access Requests" />
-          <Tab label="Access Request History" />
-        </Tabs>
+      <div className="card">
+        {/* Tab Navigation */}
+        <div className="border-b border-gray-200 mb-6">
+          <nav className="-mb-px flex space-x-8">
+            <button
+              onClick={() => setActiveTab('requests')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'requests'
+                  ? 'border-primary-500 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Access Requests
+            </button>
+            <button
+              onClick={() => setActiveTab('history')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'history'
+                  ? 'border-primary-500 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Access Request History
+            </button>
+          </nav>
+        </div>
 
-        <TabPanel value={tabValue} index={0}>
-          <AccessRequestList />
-        </TabPanel>
+        {/* Tab Content */}
+        {activeTab === 'requests' && (
+          <div>
+            <AccessRequestList />
+          </div>
+        )}
 
-        <TabPanel value={tabValue} index={1}>
-          {loadingNotifications ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
-              <CircularProgress />
-            </Box>
-          ) : notifications.length === 0 ? (
-            <Typography>No access request notifications</Typography>
-          ) : (
-            <Box>
-              {notifications.map((notification) => (
-                <Paper
-                  key={notification.id}
-                  elevation={1}
-                  sx={{
-                    p: 2,
-                    mb: 2,
-                    backgroundColor: notification.read ? 'inherit' : 'action.hover'
-                  }}
-                >
-                  <Typography variant="h6">{notification.title}</Typography>
-                  <Typography variant="body1">{notification.message}</Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    {new Date(notification.createdAt).toLocaleString()}
-                  </Typography>
-                </Paper>
-              ))}
-            </Box>
-          )}
-        </TabPanel>
-      </Paper>
+        {activeTab === 'history' && (
+          <div>
+            {loadingNotifications ? (
+              <div className="flex justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+              </div>
+            ) : notifications.length === 0 ? (
+              <div className="text-center py-12">
+                <Bell className="mx-auto h-12 w-12 text-gray-400" />
+                <h3 className="mt-2 text-sm font-medium text-gray-900">No notifications</h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  You don't have any access request notifications yet.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {notifications.map((notification) => (
+                  <div
+                    key={notification.id}
+                    className={`p-4 rounded-lg border ${
+                      notification.read 
+                        ? 'bg-white border-gray-200' 
+                        : 'bg-blue-50 border-blue-200'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2 mb-2">
+                          {notification.type === 'ACCESS_REQUEST_APPROVED' && (
+                            <CheckCircle className="h-5 w-5 text-green-600" />
+                          )}
+                          {notification.type === 'ACCESS_REQUEST_REJECTED' && (
+                            <XCircle className="h-5 w-5 text-red-600" />
+                          )}
+                          {notification.type === 'ACCESS_REQUEST' && (
+                            <Clock className="h-5 w-5 text-blue-600" />
+                          )}
+                          <h4 className="text-sm font-medium text-gray-900">
+                            {notification.title}
+                          </h4>
+                        </div>
+                        <p className="text-sm text-gray-600 mb-2">
+                          {notification.message}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {new Date(notification.createdAt).toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </Layout>
   );
 } 

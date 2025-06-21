@@ -1,34 +1,14 @@
-import { ReactNode } from 'react';
-import {
-  AppBar,
-  Box,
-  CssBaseline,
-  Drawer,
-  IconButton,
-  List,
-  ListItem,
-  ListItemIcon,
-  ListItemText,
-  Toolbar,
-  Typography,
-  Button,
-  useTheme,
-  alpha,
-  Avatar,
-  Divider,
-} from '@mui/material';
+import { ReactNode, useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Menu as MenuIcon,
-  Dashboard as DashboardIcon,
-  MedicalServices as MedicalIcon,
-  Notifications as NotificationsIcon,
+  LayoutDashboard as DashboardIcon,
+  FileText as MedicalIcon,
+  Bell as NotificationsIcon,
   Settings as SettingsIcon,
-  Logout as LogoutIcon,
-} from '@mui/icons-material';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { useState } from 'react';
-
-const drawerWidth = 280;
+  Upload as UploadIcon,
+  LogOut as LogoutIcon,
+} from 'lucide-react';
 
 interface LayoutProps {
   children: ReactNode;
@@ -39,179 +19,92 @@ export default function Layout({ children, onLogout }: LayoutProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const theme = useTheme();
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
   };
 
   const menuItems = [
-    { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
-    { text: 'Medical Records', icon: <MedicalIcon />, path: '/medical-records' },
-    { text: 'Notifications', icon: <NotificationsIcon />, path: '/notifications' },
-    { text: 'Settings', icon: <SettingsIcon />, path: '/settings' },
+    { text: 'Dashboard', icon: <DashboardIcon className="w-5 h-5" />, path: '/dashboard' },
+    { text: 'Medical Records', icon: <MedicalIcon className="w-5 h-5" />, path: '/medical-records' },
+    { text: 'Upload Records', icon: <UploadIcon className="w-5 h-5" />, path: '/upload-medical-record' },
+    { text: 'Notifications', icon: <NotificationsIcon className="w-5 h-5" />, path: '/notifications' },
+    { text: 'Settings', icon: <SettingsIcon className="w-5 h-5" />, path: '/settings' },
   ];
 
   const drawer = (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <Toolbar sx={{ 
-        px: 2,
-        background: `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.primary.dark})`,
-        color: 'white'
-      }}>
-        <Typography variant="h5" fontWeight="bold" noWrap component="div">
-          HealthChain
-        </Typography>
-      </Toolbar>
-      <Divider />
-      <List sx={{ px: 2, py: 1 }}>
-        {menuItems.map((item) => (
-          <ListItem
-            button
-            key={item.text}
-            onClick={() => navigate(item.path)}
-            selected={location.pathname === item.path}
-            sx={{
-              borderRadius: 2,
-              mb: 1,
-              transition: 'all 0.2s ease-in-out',
-              '&:hover': {
-                backgroundColor: alpha(theme.palette.primary.main, 0.1),
-                transform: 'translateX(4px)',
-              },
-              '&.Mui-selected': {
-                backgroundColor: alpha(theme.palette.primary.main, 0.15),
-                '&:hover': {
-                  backgroundColor: alpha(theme.palette.primary.main, 0.2),
-                },
-              },
-            }}
-          >
-            <ListItemIcon sx={{ 
-              color: location.pathname === item.path ? theme.palette.primary.main : 'inherit',
-              minWidth: 40
-            }}>
+    <div className="h-full flex flex-col bg-white">
+      <div className="px-4 py-6 bg-gradient-to-r from-primary-600 to-primary-700 text-white">
+        <h1 className="text-xl font-bold">HealthChain (Patient)</h1>
+      </div>
+      <div className="flex-1 overflow-y-auto">
+        <nav className="px-4 py-6 space-y-2">
+          {menuItems.map((item) => (
+            <button
+              key={item.path}
+              onClick={() => navigate(item.path)}
+              className={`w-full flex items-center px-4 py-4 rounded-lg transition-colors ${
+                location.pathname === item.path
+                  ? 'bg-primary-50 text-primary-700'
+                  : 'text-gray-600 hover:bg-gray-50'
+              }`}
+            >
               {item.icon}
-            </ListItemIcon>
-            <ListItemText 
-              primary={item.text} 
-              primaryTypographyProps={{
-                fontWeight: location.pathname === item.path ? 600 : 400,
-                color: location.pathname === item.path ? theme.palette.primary.main : 'inherit',
-              }}
-            />
-          </ListItem>
-        ))}
-      </List>
-      <Box sx={{ flexGrow: 1 }} />
-      <Divider />
-      <List sx={{ px: 2, py: 1 }}>
-        <ListItem
-          button
+              <span className="ml-3 text-base">{item.text}</span>
+            </button>
+          ))}
+        </nav>
+      </div>
+      <div className="p-4 border-t">
+        <button
           onClick={onLogout}
-          sx={{
-            borderRadius: 2,
-            color: theme.palette.error.main,
-            '&:hover': {
-              backgroundColor: alpha(theme.palette.error.main, 0.1),
-            },
-          }}
+          className="w-full flex items-center px-4 py-4 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
         >
-          <ListItemIcon sx={{ color: 'inherit', minWidth: 40 }}>
-            <LogoutIcon />
-          </ListItemIcon>
-          <ListItemText primary="Logout" />
-        </ListItem>
-      </List>
-    </Box>
+          <LogoutIcon className="w-5 h-5" />
+          <span className="ml-3 text-base">Logout</span>
+        </button>
+      </div>
+    </div>
   );
 
   return (
-    <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'grey.50' }}>
-      <CssBaseline />
-      <AppBar
-        position="fixed"
-        elevation={0}
-        sx={{
-          width: { sm: `calc(100% - ${drawerWidth}px)` },
-          ml: { sm: `${drawerWidth}px` },
-          bgcolor: 'white',
-          color: 'text.primary',
-          borderBottom: '1px solid',
-          borderColor: 'divider',
-        }}
-      >
-        <Toolbar>
-          <IconButton
-            color="inherit"
-            aria-label="open drawer"
-            edge="start"
+    <div className="min-h-screen flex flex-col bg-gray-50">
+      {/* Mobile header */}
+      <div className="lg:hidden bg-white shadow-sm">
+        <div className="flex items-center justify-between px-4 py-3">
+          <button
             onClick={handleDrawerToggle}
-            sx={{ mr: 2, display: { sm: 'none' } }}
+            className="p-2 rounded-lg text-gray-600 hover:bg-gray-100"
           >
-            <MenuIcon />
-          </IconButton>
-          <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1, fontWeight: 600 }}>
-            {menuItems.find(item => item.path === location.pathname)?.text || 'HealthChain'}
-          </Typography>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Avatar sx={{ width: 32, height: 32, bgcolor: theme.palette.primary.main }}>
-              U
-            </Avatar>
-          </Box>
-        </Toolbar>
-      </AppBar>
-      <Box
-        component="nav"
-        sx={{ width: { sm: drawerWidth }, flexShrink: { sm: 0 } }}
-      >
-        <Drawer
-          variant="temporary"
-          open={mobileOpen}
-          onClose={handleDrawerToggle}
-          ModalProps={{
-            keepMounted: true,
-          }}
-          sx={{
-            display: { xs: 'block', sm: 'none' },
-            '& .MuiDrawer-paper': { 
-              boxSizing: 'border-box', 
-              width: drawerWidth,
-              borderRight: '1px solid',
-              borderColor: 'divider',
-            },
-          }}
+            <MenuIcon className="w-6 h-6" />
+          </button>
+          <h1 className="text-xl font-bold text-primary-700">HealthChain</h1>
+        </div>
+      </div>
+
+      <div className="flex flex-1">
+        {/* Sidebar */}
+        <aside
+          className={`fixed inset-y-0 left-0 z-50 w-72 transform transition-transform duration-200 ease-in-out lg:translate-x-0 lg:static lg:inset-0 ${
+            mobileOpen ? 'translate-x-0' : '-translate-x-full'
+          }`}
         >
           {drawer}
-        </Drawer>
-        <Drawer
-          variant="permanent"
-          sx={{
-            display: { xs: 'none', sm: 'block' },
-            '& .MuiDrawer-paper': { 
-              boxSizing: 'border-box', 
-              width: drawerWidth,
-              borderRight: '1px solid',
-              borderColor: 'divider',
-            },
-          }}
-          open
-        >
-          {drawer}
-        </Drawer>
-      </Box>
-      <Box
-        component="main"
-        sx={{
-          flexGrow: 1,
-          p: { xs: 2, sm: 3 },
-          width: { sm: `calc(100% - ${drawerWidth}px)` },
-          mt: '64px',
-          minHeight: 'calc(100vh - 64px)',
-        }}
-      >
-        {children}
-      </Box>
-    </Box>
+        </aside>
+
+        {/* Overlay */}
+        {mobileOpen && (
+          <div
+            className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+            onClick={handleDrawerToggle}
+          />
+        )}
+
+        {/* Main content */}
+        <main className="flex-1 p-4 lg:p-8">
+          {children}
+        </main>
+      </div>
+    </div>
   );
 } 

@@ -1,34 +1,11 @@
 import { useState, useEffect } from 'react';
-import {
-  Box,
-  Button,
-  Typography,
-  Paper,
-  Alert,
-  CircularProgress,
-  List,
-  ListItem,
-  ListItemText,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  IconButton,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-} from '@mui/material';
-import { Visibility as ViewIcon } from '@mui/icons-material';
 import { authService } from '../services/authService';
 import { secureStorageService } from '../services/secureStorageService';
 import { MedicalRecord } from '../types/medical-record';
 import Layout from '../components/Layout';
 import { useWallet } from '../hooks/useWallet';
 import { getDoctorDetails } from '../services/doctorService';
+import { Eye, FileText, Calendar, User } from 'lucide-react';
 
 interface DoctorMedicalRecordsProps {
   onLogout: () => void;
@@ -199,199 +176,197 @@ export default function DoctorMedicalRecords({ onLogout }: DoctorMedicalRecordsP
   if (walletLoading || loading) {
     return (
       <Layout onLogout={onLogout}>
-        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
-          <CircularProgress />
-          <Typography sx={{ mt: 2 }}>Loading records...</Typography>
-        </Box>
-      </Layout>
-    );
-  }
-
-  if (!doctorAddress) {
-    return (
-      <Layout onLogout={onLogout}>
-        <Box sx={{ mt: 4, textAlign: 'center' }}>
-          <Typography variant="h6" color="error">
-            Please connect your wallet to manage medical records
-          </Typography>
-        </Box>
-      </Layout>
-    );
-  }
-
-  if (error) {
-    return (
-      <Layout onLogout={onLogout}>
-        <Box sx={{ mt: 4, textAlign: 'center' }}>
-          <Alert severity="error">{error}</Alert>
-        </Box>
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
+            <h2 className="text-xl font-semibold text-gray-700">Loading medical records...</h2>
+          </div>
+        </div>
       </Layout>
     );
   }
 
   return (
     <Layout onLogout={onLogout}>
-      <Box sx={{ mt: 4, mb: 4 }}>
-        <Typography variant="h4" gutterBottom>
-          Accessible Medical Records
-        </Typography>
-      </Box>
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <h1 className="text-3xl font-bold text-gray-900">Medical Records Access</h1>
+        </div>
 
-      <Paper elevation={3} sx={{ p: 3 }}>
-        <Box display="flex" mb={2}>
-          <Typography variant="h6" sx={{ mr: 2 }}>Patients:</Typography>
-          {patients.length > 0 ? (
-            <List dense sx={{ display: 'flex', flexDirection: 'row', p: 0 }}>
-              {patients.map((patient: any) => (
-                <ListItem
-                  button
-                  key={patient.walletAddress}
-                  selected={selectedPatientWalletAddress === patient.walletAddress}
-                  onClick={() => setSelectedPatientWalletAddress(patient.walletAddress)}
-                  sx={{ width: 'auto', pr: 2 }}
+        {error && (
+          <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-red-600 text-sm">{error}</p>
+          </div>
+        )}
+
+        {accessibleRecords.length === 0 ? (
+          <div className="text-center py-12">
+            <FileText className="mx-auto h-12 w-12 text-gray-400" />
+            <h3 className="mt-2 text-sm font-medium text-gray-900">No accessible records</h3>
+            <p className="mt-1 text-sm text-gray-500">
+              You don't have access to any medical records yet.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {/* Patient Selection */}
+            <div className="card">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">Select Patient</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {patients.map((patient) => (
+                  <button
+                    key={patient.walletAddress}
+                    onClick={() => setSelectedPatientWalletAddress(patient.walletAddress)}
+                    className={`p-4 rounded-lg border-2 transition-colors ${
+                      selectedPatientWalletAddress === patient.walletAddress
+                        ? 'border-primary-500 bg-primary-50'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <User className="h-8 w-8 text-primary-600" />
+                      <div className="text-left">
+                        <p className="font-medium text-gray-900">{patient.name}</p>
+                        <p className="text-sm text-gray-500">
+                          {patient.walletAddress.slice(0, 6)}...{patient.walletAddress.slice(-4)}
+                        </p>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Records List */}
+            {selectedPatientRecords.length > 0 && (
+              <div className="card">
+                <h2 className="text-xl font-semibold text-gray-900 mb-4">Medical Records</h2>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Record Name
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          File Type
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Upload Date
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {selectedPatientRecords.map((record) => (
+                        <tr key={record.id} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm font-medium text-gray-900">{record.title}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                              {record.fileType || 'Unknown'}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {new Date(record.createdAt).toLocaleDateString()}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <button
+                              onClick={() => handleViewRecord(record)}
+                              className="text-primary-600 hover:text-primary-900 flex items-center space-x-1"
+                            >
+                              <Eye className="h-4 w-4" />
+                              <span>View</span>
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Password Dialog */}
+        {showPasswordDialog && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Enter Password</h3>
+              <p className="text-sm text-gray-600 mb-4">
+                Please enter your password to decrypt and view this medical record.
+              </p>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter your password"
+                className="input-field mb-4"
+              />
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={handleCloseViewer}
+                  className="btn-outline"
                 >
-                  <ListItemText primary={patient.name} />
-                </ListItem>
-              ))}
-            </List>
-          ) : (
-            <Typography variant="body1" color="text.secondary">No patients with accessible records.</Typography>
-          )}
-        </Box>
-
-        {selectedPatientWalletAddress && selectedPatientRecords.length > 0 && (
-          <>
-            <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
-              Records for {patients.find(p => p.walletAddress === selectedPatientWalletAddress)?.name || 'Selected Patient'}
-            </Typography>
-            <TableContainer>
-              <Table>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Title</TableCell>
-                    <TableCell>Description</TableCell>
-                    <TableCell>File Type</TableCell>
-                    <TableCell>Created At</TableCell>
-                    <TableCell>Actions</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {selectedPatientRecords.map((record: MedicalRecord) => (
-                    <TableRow key={record.id}>
-                      <TableCell>{record.title}</TableCell>
-                      <TableCell>{record.description}</TableCell>
-                      <TableCell>{record.fileType}</TableCell>
-                      <TableCell>{new Date(record.createdAt).toLocaleDateString()}</TableCell>
-                      <TableCell>
-                        <IconButton onClick={() => handleViewRecord(record)} color="primary">
-                          <ViewIcon />
-                        </IconButton>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </>
+                  Cancel
+                </button>
+                <button
+                  onClick={handlePasswordSubmit}
+                  disabled={decrypting || !password}
+                  className="btn-primary"
+                >
+                  {decrypting ? (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  ) : (
+                    'View Record'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
         )}
 
-        {!selectedPatientWalletAddress && accessibleRecords.length > 0 && (
-            <Typography variant="body1" color="text.secondary">
-              Please select a patient to view their medical records.
-            </Typography>
+        {/* Record Viewer */}
+        {viewingRecord && (decryptedTextContent || decryptedFileUrl) && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg max-w-4xl w-full mx-4 max-h-[90vh] overflow-hidden">
+              <div className="flex justify-between items-center p-4 border-b">
+                <h3 className="text-lg font-medium text-gray-900">{viewingRecord.title}</h3>
+                <button
+                  onClick={handleCloseViewer}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  ×
+                </button>
+              </div>
+              <div className="p-4 overflow-auto max-h-[calc(90vh-80px)]">
+                {decryptedTextContent && (
+                  <pre className="whitespace-pre-wrap text-sm text-gray-900 bg-gray-50 p-4 rounded">
+                    {decryptedTextContent}
+                  </pre>
+                )}
+                {decryptedFileUrl && (
+                  <div className="text-center">
+                    {viewingRecord.fileType?.startsWith('image/') ? (
+                      <img src={decryptedFileUrl} alt="Medical Record" className="max-w-full h-auto" />
+                    ) : (
+                      <iframe
+                        src={decryptedFileUrl}
+                        className="w-full h-96"
+                        title="Medical Record"
+                      />
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         )}
-
-        {accessibleRecords.length === 0 && !loading && !doctorAddress && (
-          <Typography variant="body1" color="text.secondary">
-            You do not currently have access to any medical records.
-          </Typography>
-        )}
-      </Paper>
-
-      <Dialog
-        open={!!viewingRecord}
-        onClose={handleCloseViewer}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle>
-          {viewingRecord?.title}
-        </DialogTitle>
-        <DialogContent>
-          <Box sx={{ flexGrow: 1, overflowY: 'auto', mt: 2, mb: 2 }}>
-            {decrypting ? (
-              <Box sx={{ display: 'flex', justifyContent: 'center' }}>
-                <CircularProgress />
-              </Box>
-            ) : error ? (
-              <Typography color="error">{error}</Typography>
-            ) : decryptedTextContent !== null ? (
-              <Typography sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                {decryptedTextContent}
-              </Typography>
-            ) : decryptedFileUrl !== null && viewingRecord?.fileType === 'application/pdf' ? (
-              <Box sx={{ width: '100%', height: '500px' }}>
-                <iframe
-                  src={decryptedFileUrl}
-                  title="Medical Record Viewer"
-                  width="100%"
-                  height="100%"
-                  style={{ border: 'none' }}
-                />
-              </Box>
-            ) : decryptedFileUrl !== null && viewingRecord?.fileType?.startsWith('image/') ? (
-              <Box sx={{ maxWidth: '100%', maxHeight: '500px' }}>
-                <img
-                  src={decryptedFileUrl}
-                  alt="Medical Record Image"
-                  style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
-                />
-              </Box>
-            ) : (
-              <Typography>
-                Cannot preview this file type ({viewingRecord?.fileType || 'Unknown'}).
-              </Typography>
-            )}
-          </Box>
-          <Box sx={{ mt: 2, textAlign: 'right' }}>
-            {decryptedFileUrl && (
-              <Button
-                variant="contained"
-                color="primary"
-                onClick={() => window.open(decryptedFileUrl!, ' _blank')}
-                sx={{ mr: 1 }}
-              >
-                Open in New Tab
-              </Button>
-            )}
-            <Button variant="outlined" onClick={handleCloseViewer}>
-              Close
-            </Button>
-          </Box>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={showPasswordDialog} onClose={() => setShowPasswordDialog(false)}>
-        <DialogTitle>Enter Password</DialogTitle>
-        <DialogContent>
-          <TextField
-            autoFocus
-            margin="dense"
-            label="Password"
-            type="password"
-            fullWidth
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            helperText="Enter your password to decrypt the medical record"
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setShowPasswordDialog(false)}>Cancel</Button>
-          <Button onClick={handlePasswordSubmit} variant="contained" color="primary">
-            Decrypt
-          </Button>
-        </DialogActions>
-      </Dialog>
+      </div>
     </Layout>
   );
 } 
